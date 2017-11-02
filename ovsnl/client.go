@@ -18,13 +18,25 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unsafe"
 
 	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/mdlayher/genetlink"
 )
 
+// Sizes of various structures, used in unsafe casts.
+const (
+	sizeofHeader = int(unsafe.Sizeof(ovsh.Header{}))
+
+	sizeofDPStats         = int(unsafe.Sizeof(ovsh.DPStats{}))
+	sizeofDPMegaflowStats = int(unsafe.Sizeof(ovsh.DPMegaflowStats{}))
+)
+
 // A Client is a Linux Open vSwitch generic netlink client.
 type Client struct {
+	// Datapath provides access to DatapathService methods.
+	Datapath *DatapathService
+
 	c *genetlink.Conn
 }
 
@@ -100,7 +112,13 @@ func (c *Client) init(families []genetlink.Family) error {
 // initFamily initializes a single generic netlink family service.
 func (c *Client) initFamily(f genetlink.Family) error {
 	switch f.Name {
-	case ovsh.DatapathFamily, ovsh.FlowFamily, ovsh.PacketFamily, ovsh.VportFamily:
+	case ovsh.DatapathFamily:
+		c.Datapath = &DatapathService{
+			f: f,
+			c: c,
+		}
+		return nil
+	case ovsh.FlowFamily, ovsh.PacketFamily, ovsh.VportFamily:
 		// TODO(mdlayher): populate.
 		return nil
 	}
