@@ -43,13 +43,18 @@ func New() (*Client, error) {
 
 // newClient is the internal Client constructor, used in tests.
 func newClient(c *genetlink.Conn) (*Client, error) {
+	// Must ensure that the generic netlink connection is closed on any errors
+	// that occur before it is returned to the caller.
+
 	families, err := c.ListFamilies()
 	if err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
 	client := &Client{c: c}
 	if err := client.init(families); err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 
