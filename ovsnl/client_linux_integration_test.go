@@ -34,6 +34,12 @@ func TestLinuxClientIntegration(t *testing.T) {
 	}
 	defer c.Close()
 
-	// TODO(mdlayher): fill in after Client has more methods.
-	_ = c
+	dps, err := c.Datapath.List()
+	if err != nil {
+		t.Fatalf("failed to list datapaths: %v", err)
+	}
+
+	for _, d := range dps {
+		t.Logf("datapath: %q, flows: %d", d.Name, d.Stats.Flows)
+	}
 }

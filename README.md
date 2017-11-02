@@ -32,5 +32,13 @@ if err != nil {
 // Be sure to close the generic netlink connection!
 defer c.Close()
 
-// TODO(mdlayher): expand upon this example!
+// List available OVS datapaths.
+dps, err := c.Datapath.List()
+if err != nil {
+	log.Fatalf("failed to list datapaths: %v", err)
+}
+
+for _, d := range dps {
+	log.Printf("datapath: %q, flows: %d", d.Name, d.Stats.Flows)
+}
 ```

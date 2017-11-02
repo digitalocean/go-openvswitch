@@ -117,6 +117,23 @@ func familyMessages(families []string) []genetlink.Message {
 	return msgs
 }
 
+// ovsFamilies creates a genltest.Func which intercepts "list family" requests
+// and returns all the OVS families.  Other requests are passed through to fn.
+func ovsFamilies(fn genltest.Func) genltest.Func {
+	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+		if nreq.Header.Type == unix.GENL_ID_CTRL && greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
+			return familyMessages([]string{
+				ovsh.DatapathFamily,
+				ovsh.FlowFamily,
+				ovsh.PacketFamily,
+				ovsh.VportFamily,
+			}), nil
+		}
+
+		return fn(greq, nreq)
+	}
+}
+
 func mustMarshalAttributes(attrs []netlink.Attribute) []byte {
 	b, err := netlink.MarshalAttributes(attrs)
 	if err != nil {
