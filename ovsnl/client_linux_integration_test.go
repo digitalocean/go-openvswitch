@@ -17,10 +17,12 @@
 package ovsnl_test
 
 import (
+	"net"
 	"os"
 	"testing"
 
 	"github.com/digitalocean/go-openvswitch/ovsnl"
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestLinuxClientIntegration(t *testing.T) {
@@ -34,12 +36,34 @@ func TestLinuxClientIntegration(t *testing.T) {
 	}
 	defer c.Close()
 
+	const (
+		ovsSystem = "ovs-system"
+		ovsBridge = "ovsbr0"
+	)
+
+	// Ensure required interfaces exist for remaining tests.
+	for _, ifi := range []string{ovsSystem, ovsBridge} {
+		if _, err := net.InterfaceByName(ifi); err != nil {
+			t.Skipf("failed to check for OVS interface %q: %v", ifi, err)
+		}
+	}
+
+	t.Run("datapath", func(t *testing.T) {
+		testClientDatapath(t, c, ovsSystem)
+	})
+}
+
+func testClientDatapath(t *testing.T, c *ovsnl.Client, datapath string) {
 	dps, err := c.Datapath.List()
 	if err != nil {
 		t.Fatalf("failed to list datapaths: %v", err)
 	}
 
-	for _, d := range dps {
-		t.Logf("datapath: %q, flows: %d", d.Name, d.Stats.Flows)
+	if diff := cmp.Diff(1, len(dps)); diff != "" {
+		t.Fatalf("unexpected number of datapaths (-want +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff(datapath, dps[0].Name); diff != "" {
+		t.Fatalf("unexpected datapath name (-want +got):\n%s", diff)
 	}
 }
