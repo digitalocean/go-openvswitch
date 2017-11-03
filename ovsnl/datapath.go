@@ -103,8 +103,10 @@ func (s *DatapathService) List() ([]Datapath, error) {
 			Command: ovsh.DpCmdGet,
 			Version: uint8(s.f.Version),
 		},
-		// Query all datapaths
-		Data: nlenc.Uint32Bytes(0),
+		// Query all datapaths.
+		Data: headerBytes(ovsh.Header{
+			Ifindex: 0,
+		}),
 	}
 
 	flags := netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump
@@ -122,15 +124,15 @@ func parseDatapaths(msgs []genetlink.Message) ([]Datapath, error) {
 	dps := make([]Datapath, 0, len(msgs))
 
 	for _, m := range msgs {
-		if l := len(m.Data); l < sizeofHeader {
-			return nil, fmt.Errorf("not enough data for OVS message header: %d bytes", l)
+		// Fetch the header at the beginning of the message.
+		h, err := parseHeader(m.Data)
+		if err != nil {
+			return nil, err
 		}
 
-		var dp Datapath
-
-		// Fetch the header at the beginning of the message.
-		h := *(*ovsh.Header)(unsafe.Pointer(&m.Data[:sizeofHeader][0]))
-		dp.Index = int(h.Ifindex)
+		dp := Datapath{
+			Index: int(h.Ifindex),
+		}
 
 		// Skip the header to parse attributes.
 		attrs, err := netlink.UnmarshalAttributes(m.Data[sizeofHeader:])
