@@ -125,3 +125,20 @@ func (c *Client) initFamily(f genetlink.Family) error {
 
 	return fmt.Errorf("unrecognized OVS generic netlink family: %q", f.Name)
 }
+
+// headerBytes converts an ovsh.Header into a byte slice.
+func headerBytes(h ovsh.Header) []byte {
+	b := *(*[sizeofHeader]byte)(unsafe.Pointer(&h))
+	return b[:]
+}
+
+// parseHeader converts a byte slice into ovsh.Header.
+func parseHeader(b []byte) (ovsh.Header, error) {
+	// Verify that the byte slice is long enough before doing unsafe casts.
+	if l := len(b); l < sizeofHeader {
+		return ovsh.Header{}, fmt.Errorf("not enough data for OVS message header: %d bytes", l)
+	}
+
+	h := *(*ovsh.Header)(unsafe.Pointer(&b[:sizeofHeader][0]))
+	return h, nil
+}

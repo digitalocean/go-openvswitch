@@ -135,7 +135,13 @@ func TestClientDatapathListOK(t *testing.T) {
 		if diff := cmp.Diff(ovsh.DpCmdGet, int(greq.Header.Command)); diff != "" {
 			t.Fatalf("unexpected generic netlink command (-want +got):\n%s", diff)
 		}
-		if diff := cmp.Diff(0, int(nlenc.Uint32(greq.Data))); diff != "" {
+
+		h, err := parseHeader(greq.Data)
+		if err != nil {
+			t.Fatalf("failed to parse OvS generic netlink header: %v", err)
+		}
+
+		if diff := cmp.Diff(0, int(h.Ifindex)); diff != "" {
 			t.Fatalf("unexpected datapath ID (-want +got):\n%s", diff)
 		}
 
@@ -171,7 +177,7 @@ func mustMarshalDatapath(dp Datapath) []byte {
 		Ifindex: int32(dp.Index),
 	}
 
-	hb := *(*[sizeofHeader]byte)(unsafe.Pointer(&h))
+	hb := headerBytes(h)
 
 	s := ovsh.DPStats{
 		Hit:    dp.Stats.Hit,
