@@ -2,7 +2,6 @@ package ovs
 
 import (
 	"fmt"
-	"math"
 	"net"
 	"reflect"
 	"testing"
@@ -725,11 +724,6 @@ func TestMatchVLANTCI(t *testing.T) {
 		out  string
 	}{
 		{
-			desc: "uint16 mask underflow",
-			m:    VLANTCI(10, 0>>(math.MaxUint16/2)),
-			out:  "vlan_tci=0x000a",
-		},
-		{
 			desc: "TCI 10, no mask",
 			m:    VLANTCI(10, 0),
 			out:  "vlan_tci=0x000a",
@@ -762,11 +756,6 @@ func TestMatchConnectionTrackingMark(t *testing.T) {
 		m    Match
 		out  string
 	}{
-		{
-			desc: "uint16 mask underflow",
-			m:    ConnectionTrackingMark(10, 0>>(math.MaxUint16/2)),
-			out:  "ct_mark=0x0000000a",
-		},
 		{
 			desc: "Mark 10, no mask",
 			m:    ConnectionTrackingMark(10, 0),
