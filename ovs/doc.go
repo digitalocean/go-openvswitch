@@ -12,5 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package ovs is a client library for Open vSwitch which enables programmatic control of the virtual switch.
+// Package ovs is a client library for Open vSwitch which enables programmatic
+// control of the virtual switch.
 package ovs
