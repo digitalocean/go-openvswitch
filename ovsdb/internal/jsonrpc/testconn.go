@@ -17,7 +17,10 @@ package jsonrpc
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -27,23 +30,25 @@ import (
 type TestFunc func(req Request) Response
 
 // TestConn creates a Conn backed by a server that calls a TestFunc.
+// Notifications can be pushed to the client using the channel.
 // Invoke the returned closure to clean up its resources.
-func TestConn(t *testing.T, fn TestFunc) (*Conn, func()) {
+func TestConn(t *testing.T, fn TestFunc) (*Conn, chan<- *Response, func()) {
 	t.Helper()
 
-	conn, done := TestNetConn(t, fn)
+	conn, notifC, done := TestNetConn(t, fn)
 
-	c := NewConn(conn, nil)
+	c := NewConn(conn, log.New(os.Stderr, "", 0))
 
-	return c, func() {
+	return c, notifC, func() {
 		_ = c.Close()
 		done()
 	}
 }
 
 // TestNetConn creates a net.Conn backed by a server that calls a TestFunc.
+// Notifications can be pushed to the client using the channel.
 // Invoke the returned closure to clean up its resources.
-func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, func()) {
+func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func()) {
 	t.Helper()
 
 	l, err := net.Listen("tcp", ":0")
@@ -52,31 +57,53 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, func()) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
+
+	notifC := make(chan *Response, 16)
 
 	go func() {
 		defer wg.Done()
 
+		// Accept a single connection.
+		c, err := l.Accept()
+		if err != nil {
+			if strings.Contains(err.Error(), "use of closed network") {
+				return
+			}
+
+			panicf("failed to accept: %v", err)
+		}
+		defer c.Close()
+
+		dec := json.NewDecoder(c)
+		enc := json.NewEncoder(c)
+
+		// Push RPC notifications to the client.
+		go func() {
+			defer wg.Done()
+
+			for n := range notifC {
+				if err := enc.Encode(n); err != nil {
+					panicf("failed to encode notification: %v", err)
+				}
+			}
+		}()
+
+		// Handle RPC requests and responses to and from the client.
 		for {
-			c, err := l.Accept()
-			if err != nil {
-				if strings.Contains(err.Error(), "use of closed network") {
+			var req Request
+			if err := dec.Decode(&req); err != nil {
+				if err == io.EOF {
 					return
 				}
 
-				panicf("failed to accept: %v", err)
-			}
-
-			var req Request
-			if err := json.NewDecoder(c).Decode(&req); err != nil {
 				panicf("failed to decode request: %v", err)
 			}
 
 			res := fn(req)
-			if err := json.NewEncoder(c).Encode(res); err != nil {
+			if err := enc.Encode(res); err != nil {
 				panicf("failed to encode response: %v", err)
 			}
-			_ = c.Close()
 		}
 	}()
 
@@ -85,10 +112,11 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, func()) {
 		t.Fatalf("failed to dial: %v", err)
 	}
 
-	return c, func() {
+	return c, notifC, func() {
 		// Ensure types are cleaned up, and ensure goroutine stops.
 		_ = l.Close()
 		_ = c.Close()
+		close(notifC)
 		wg.Wait()
 	}
 }

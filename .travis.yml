@@ -17,5 +17,5 @@ script:
   - staticcheck ./...
   - ./scripts/golint.sh
   - go test -race ./...
-  - go test -c ./ovsdb
+  - go test -c -race ./ovsdb
   - sudo ./ovsdb.test -test.v

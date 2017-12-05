@@ -16,6 +16,7 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -29,11 +30,28 @@ type Request struct {
 	Params []interface{} `json:"params"`
 }
 
-// A Response is a JSON-RPC response.
+// A Response is either a JSON-RPC response, or a JSON-RPC request notification.
 type Response struct {
-	ID     int         `json:"id"`
-	Result interface{} `json:"result"`
-	Error  interface{} `json:"error"`
+	// Non-null for response; null for request notification.
+	ID *int `json:"id"`
+
+	// Response fields.
+	Result json.RawMessage `json:"result,omitempty"`
+	Error  interface{}     `json:"error"`
+
+	// Request notification fields.
+	Method string          `json:"method,omitempty"`
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
+// Err returns an error, if one occurred in a Response.
+func (r *Response) Err() error {
+	// TODO(mdlayher): better errors.
+	if r.Error == nil {
+		return nil
+	}
+
+	return fmt.Errorf("received JSON-RPC error: %#v", r.Error)
 }
 
 // NewConn creates a new Conn with the input io.ReadWriteCloser.
@@ -47,38 +65,34 @@ func NewConn(rwc io.ReadWriteCloser, ll *log.Logger) *Conn {
 	}
 
 	return &Conn{
-		enc:    json.NewEncoder(rwc),
-		dec:    json.NewDecoder(rwc),
-		closer: rwc,
+		c:   rwc,
+		enc: json.NewEncoder(rwc),
+		dec: json.NewDecoder(rwc),
 	}
 }
 
 // A Conn is a JSON-RPC connection.
 type Conn struct {
-	mu     sync.RWMutex
-	enc    *json.Encoder
-	dec    *json.Decoder
-	closer io.Closer
-	seq    int
+	c io.Closer
+
+	encMu sync.Mutex
+	enc   *json.Encoder
+
+	decMu sync.Mutex
+	dec   *json.Decoder
 }
 
 // Close closes the connection.
 func (c *Conn) Close() error {
-	return c.closer.Close()
+	// TODO(mdlayher): acquiring mutex will block forever if receive loop
+	// is happening elsewhere. Any way to avoid this?
+	return c.c.Close()
 }
 
-// Execute executes a single request and unmarshals its results into out.
-func (c *Conn) Execute(req Request, out interface{}) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.seq++
-
-	// Use auto-increment sequence, or user-defined if requested.
-	seq := c.seq
-	if req.ID != 0 {
-		seq = req.ID
-	} else {
-		req.ID = seq
+// Send sends a single JSON-RPC request.
+func (c *Conn) Send(req Request) error {
+	if req.ID == 0 {
+		return errors.New("JSON-RPC request ID must be non-zero")
 	}
 
 	// Non-nil array required for ovsdb-server to reply.
@@ -86,28 +100,32 @@ func (c *Conn) Execute(req Request, out interface{}) error {
 		req.Params = []interface{}{}
 	}
 
+	c.encMu.Lock()
+	defer c.encMu.Unlock()
+
 	if err := c.enc.Encode(req); err != nil {
 		return fmt.Errorf("failed to encode JSON-RPC request: %v", err)
 	}
 
-	res := Response{
-		Result: out,
-	}
-
-	if err := c.dec.Decode(&res); err != nil {
-		return fmt.Errorf("failed to decode JSON-RPC request: %v", err)
-	}
-
-	if res.ID != seq {
-		return fmt.Errorf("bad JSON-RPC sequence: %d, want: %d", res.ID, seq)
-	}
-
-	// TODO(mdlayher): better errors.
-	if res.Error != nil {
-		return fmt.Errorf("received JSON-RPC error: %#v", res.Error)
-	}
-
 	return nil
+}
+
+// Receive receives a single JSON-RPC response.
+func (c *Conn) Receive() (*Response, error) {
+	c.decMu.Lock()
+	defer c.decMu.Unlock()
+
+	var res Response
+	if err := c.dec.Decode(&res); err != nil {
+		// Don't mask EOF errors with added detail.
+		if err == io.EOF {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("failed to decode JSON-RPC response: %v", err)
+	}
+
+	return &res, nil
 }
 
 type debugReadWriteCloser struct {

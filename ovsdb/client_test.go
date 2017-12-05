@@ -15,7 +15,10 @@
 package ovsdb_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb"
@@ -23,17 +26,34 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestClientError(t *testing.T) {
+func TestClientJSONRPCError(t *testing.T) {
 	const str = "some error"
 
-	c, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID: 1,
-			Result: &ovsdb.Error{
+			ID:    intPtr(1),
+			Error: str,
+		}
+	})
+	defer done()
+
+	_, err := c.ListDatabases()
+	if err == nil {
+		t.Fatal("expected an error, but none occurred")
+	}
+}
+
+func TestClientOVSDBError(t *testing.T) {
+	const str = "some error"
+
+	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+		return jsonrpc.Response{
+			ID: intPtr(1),
+			Result: mustMarshalJSON(t, &ovsdb.Error{
 				Err:     str,
 				Details: "malformed",
 				Syntax:  "{}",
-			},
+			}),
 		}
 	})
 	defer done()
@@ -56,7 +76,7 @@ func TestClientError(t *testing.T) {
 func TestClientListDatabases(t *testing.T) {
 	want := []string{"Open_vSwitch", "test"}
 
-	c, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
 		if diff := cmp.Diff("list_dbs", req.Method); diff != "" {
 			panicf("unexpected RPC method (-want +got):\n%s", diff)
 		}
@@ -66,8 +86,8 @@ func TestClientListDatabases(t *testing.T) {
 		}
 
 		return jsonrpc.Response{
-			ID:     1,
-			Result: want,
+			ID:     intPtr(1),
+			Result: mustMarshalJSON(t, want),
 		}
 	})
 	defer done()
@@ -82,17 +102,35 @@ func TestClientListDatabases(t *testing.T) {
 	}
 }
 
-func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, func()) {
+func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
 	t.Helper()
 
-	conn, done := jsonrpc.TestNetConn(t, fn)
+	conn, notifC, done := jsonrpc.TestNetConn(t, fn)
 
-	c, err := ovsdb.New(conn)
+	c, err := ovsdb.New(conn, ovsdb.Debug(log.New(os.Stderr, "", 0)))
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
 
-	return c, done
+	return c, notifC, func() {
+		_ = c.Close()
+		done()
+	}
+}
+
+func mustMarshalJSON(t *testing.T, v interface{}) []byte {
+	t.Helper()
+
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("failed to marshal JSON: %v", err)
+	}
+
+	return b
+}
+
+func intPtr(i int) *int {
+	return &i
 }
 
 func panicf(format string, a ...interface{}) {
