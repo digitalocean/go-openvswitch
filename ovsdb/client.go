@@ -18,36 +18,62 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/rpc"
-	"net/rpc/jsonrpc"
+	"log"
+	"net"
+
+	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
 )
 
 // A Client is an OVSDB client.
 type Client struct {
-	rc *rpc.Client
+	c  *jsonrpc.Conn
+	ll *log.Logger
+}
+
+// An OptionFunc is a function which can configure a Client.
+type OptionFunc func(c *Client) error
+
+// Debug enables debug logging for a Client.
+func Debug(ll *log.Logger) OptionFunc {
+	return func(c *Client) error {
+		c.ll = ll
+		return nil
+	}
 }
 
 // Dial dials a connection to an OVSDB server and returns a Client.
-func Dial(network, addr string) (*Client, error) {
-	c, err := jsonrpc.Dial(network, addr)
+func Dial(network, addr string, options ...OptionFunc) (*Client, error) {
+	conn, err := net.Dial(network, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Client{
-		rc: c,
-	}, nil
+	return New(conn, options...)
+}
+
+// New wraps an existing connection to an OVSDB server and returns a Client.
+func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
+	client := &Client{}
+	for _, o := range options {
+		if err := o(client); err != nil {
+			return nil, err
+		}
+	}
+
+	client.c = jsonrpc.NewConn(conn, client.ll)
+
+	return client, nil
 }
 
 // Close closes a Client's connection.
 func (c *Client) Close() error {
-	return c.rc.Close()
+	return c.c.Close()
 }
 
 // ListDatabases returns the name of all databases known to the OVSDB server.
 func (c *Client) ListDatabases() ([]string, error) {
 	var dbs []string
-	if err := c.rpc("list_dbs", nil, &dbs); err != nil {
+	if err := c.rpc("list_dbs", &dbs); err != nil {
 		return nil, err
 	}
 
@@ -55,13 +81,19 @@ func (c *Client) ListDatabases() ([]string, error) {
 }
 
 // rpc performs a single RPC request, and checks the response for errors.
-func (c *Client) rpc(method string, args, reply interface{}) error {
-	// Captures any JSON-RPC errors.
+func (c *Client) rpc(method string, out interface{}, args ...interface{}) error {
+	// Captures any OVSDB errors.
 	r := result{
-		Reply: reply,
+		Reply: out,
 	}
 
-	if err := c.rc.Call(method, args, &r); err != nil {
+	req := jsonrpc.Request{
+		Method: method,
+		Params: args,
+		// Let the client handle the request ID.
+	}
+
+	if err := c.c.Execute(req, &r); err != nil {
 		return err
 	}
 
