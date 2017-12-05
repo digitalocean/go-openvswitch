@@ -15,7 +15,8 @@
 package ovsdb_test
 
 import (
-	"os"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb"
@@ -23,21 +24,51 @@ import (
 )
 
 func TestClientIntegration(t *testing.T) {
-	// Assume the standard Linux location for the socket.
-	const sock = "/var/run/openvswitch/db.sock"
-	if _, err := os.Open(sock); err != nil {
-		t.Skipf("could not access %q: %v", sock, err)
-	}
-
-	c, err := ovsdb.Dial("unix", sock)
-	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
-	}
+	c := dialOVSDB(t)
 	defer c.Close()
 
 	t.Run("databases", func(t *testing.T) {
 		testClientDatabases(t, c)
 	})
+}
+
+func TestClientIntegrationConcurrent(t *testing.T) {
+	c := dialOVSDB(t)
+	defer c.Close()
+
+	const n = 512
+
+	// Wait for all goroutines to start before performing RPCs,
+	// wait for them all to exit before ending the test.
+	var startWG, doneWG sync.WaitGroup
+	startWG.Add(n)
+	doneWG.Add(n)
+
+	// Block all goroutines until they're done spinning up.
+	sigC := make(chan struct{}, 0)
+
+	for i := 0; i < n; i++ {
+		go func(c *ovsdb.Client) {
+			// Block goroutines until all are spun up.
+			startWG.Done()
+			<-sigC
+
+			for j := 0; j < 4; j++ {
+				_, err := c.ListDatabases()
+				if err != nil {
+					panic(fmt.Sprintf("failed to query concurrently: %v", err))
+				}
+			}
+
+			doneWG.Done()
+		}(c)
+	}
+
+	// Unblock all goroutines once they're all spun up, and wait
+	// for them all to finish reading.
+	startWG.Wait()
+	close(sigC)
+	doneWG.Wait()
 }
 
 func testClientDatabases(t *testing.T, c *ovsdb.Client) {
@@ -51,4 +82,17 @@ func testClientDatabases(t *testing.T, c *ovsdb.Client) {
 	if diff := cmp.Diff(want, dbs); diff != "" {
 		t.Fatalf("unexpected databases (-want +got):\n%s", diff)
 	}
+}
+
+func dialOVSDB(t *testing.T) *ovsdb.Client {
+	t.Helper()
+
+	// Assume the standard Linux location for the socket.
+	const sock = "/var/run/openvswitch/db.sock"
+	c, err := ovsdb.Dial("unix", sock)
+	if err != nil {
+		t.Skipf("could not access %q: %v", sock, err)
+	}
+
+	return c
 }
