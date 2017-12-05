@@ -73,35 +73,6 @@ func TestClientOVSDBError(t *testing.T) {
 	}
 }
 
-func TestClientListDatabases(t *testing.T) {
-	want := []string{"Open_vSwitch", "test"}
-
-	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
-		if diff := cmp.Diff("list_dbs", req.Method); diff != "" {
-			panicf("unexpected RPC method (-want +got):\n%s", diff)
-		}
-
-		if diff := cmp.Diff(0, len(req.Params)); diff != "" {
-			panicf("unexpected number of RPC parameters (-want +got):\n%s", diff)
-		}
-
-		return jsonrpc.Response{
-			ID:     intPtr(1),
-			Result: mustMarshalJSON(t, want),
-		}
-	})
-	defer done()
-
-	dbs, err := c.ListDatabases()
-	if err != nil {
-		t.Fatalf("failed to list databases: %v", err)
-	}
-
-	if diff := cmp.Diff(want, dbs); diff != "" {
-		t.Fatalf("unexpected databases (-want +got):\n%s", diff)
-	}
-}
-
 func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
 	t.Helper()
 
