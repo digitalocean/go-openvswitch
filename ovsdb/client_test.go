@@ -15,24 +15,25 @@
 package ovsdb_test
 
 import (
-	"encoding/json"
 	"fmt"
-	"net"
-	"sync"
 	"testing"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb"
+	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestClientError(t *testing.T) {
 	const str = "some error"
 
-	c, done := testClient(t, func(_ string, _ []interface{}) interface{} {
-		return &ovsdb.Error{
-			Err:     str,
-			Details: "malformed",
-			Syntax:  "{}",
+	c, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+		return jsonrpc.Response{
+			ID: 1,
+			Result: &ovsdb.Error{
+				Err:     str,
+				Details: "malformed",
+				Syntax:  "{}",
+			},
 		}
 	})
 	defer done()
@@ -51,19 +52,23 @@ func TestClientError(t *testing.T) {
 		t.Fatalf("unexpected error (-want +got):\n%s", diff)
 	}
 }
+
 func TestClientListDatabases(t *testing.T) {
 	want := []string{"Open_vSwitch", "test"}
 
-	c, done := testClient(t, func(method string, params []interface{}) interface{} {
-		if diff := cmp.Diff("list_dbs", method); diff != "" {
-			t.Fatalf("unexpected RPC method (-want +got):\n%s", diff)
+	c, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+		if diff := cmp.Diff("list_dbs", req.Method); diff != "" {
+			panicf("unexpected RPC method (-want +got):\n%s", diff)
 		}
 
-		if diff := cmp.Diff(1, len(params)); diff != "" {
-			t.Fatalf("unexpected number of RPC parameters (-want +got):\n%s", diff)
+		if diff := cmp.Diff(0, len(req.Params)); diff != "" {
+			panicf("unexpected number of RPC parameters (-want +got):\n%s", diff)
 		}
 
-		return want
+		return jsonrpc.Response{
+			ID:     1,
+			Result: want,
+		}
 	})
 	defer done()
 
@@ -77,70 +82,17 @@ func TestClientListDatabases(t *testing.T) {
 	}
 }
 
-type rpcFunc func(method string, params []interface{}) interface{}
-
-func testClient(t *testing.T, fn rpcFunc) (*ovsdb.Client, func()) {
+func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, func()) {
 	t.Helper()
 
-	l, err := net.Listen("tcp", ":0")
-	if err != nil {
-		t.Fatalf("failed to listen: %v", err)
-	}
+	conn, done := jsonrpc.TestNetConn(t, fn)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
-		// Accept a single connection.
-		c, err := l.Accept()
-		if err != nil {
-			panicf("failed to accept: %v", err)
-		}
-		defer c.Close()
-		_ = l.Close()
-
-		if err := handleConn(c, fn); err != nil {
-			panicf("failed to handle connection: %v", err)
-		}
-	}()
-
-	c, err := ovsdb.Dial("tcp", l.Addr().String())
+	c, err := ovsdb.New(conn)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}
 
-	return c, func() {
-		// Ensure types are cleaned up, and ensure goroutine stops.
-		_ = l.Close()
-		_ = c.Close()
-		wg.Wait()
-	}
-}
-
-func handleConn(c net.Conn, fn rpcFunc) error {
-	var req struct {
-		Method string        `json:"method"`
-		Params []interface{} `json:"params"`
-		ID     int           `json:"id"`
-	}
-
-	var res struct {
-		Result interface{} `json:"result"`
-		ID     int         `json:"id"`
-	}
-
-	if err := json.NewDecoder(c).Decode(&req); err != nil {
-		return err
-	}
-
-	result := fn(req.Method, req.Params)
-
-	res.ID = req.ID
-	res.Result = result
-
-	return json.NewEncoder(c).Encode(res)
+	return c, done
 }
 
 func panicf(format string, a ...interface{}) {
