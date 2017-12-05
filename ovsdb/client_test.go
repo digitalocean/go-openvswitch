@@ -73,6 +73,26 @@ func TestClientOVSDBError(t *testing.T) {
 	}
 }
 
+func TestClientBadCallback(t *testing.T) {
+	c, notifC, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+		return jsonrpc.Response{
+			ID:     intPtr(1),
+			Result: mustMarshalJSON(t, []string{"foo"}),
+		}
+	})
+	defer done()
+
+	// Client doesn't have a callback for this ID.
+	notifC <- &jsonrpc.Response{
+		Method: "crash",
+		ID:     intPtr(10),
+	}
+
+	if _, err := c.ListDatabases(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
 	t.Helper()
 
