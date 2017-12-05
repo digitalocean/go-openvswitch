@@ -15,7 +15,6 @@
 package ovsdb
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -113,16 +112,6 @@ func (c *Client) Close() error {
 	err := c.c.Close()
 	c.wg.Wait()
 	return err
-}
-
-// ListDatabases returns the name of all databases known to the OVSDB server.
-func (c *Client) ListDatabases() ([]string, error) {
-	var dbs []string
-	if err := c.rpc("list_dbs", &dbs); err != nil {
-		return nil, err
-	}
-
-	return dbs, nil
 }
 
 // rpc performs a single RPC request, and checks the response for errors.
@@ -231,45 +220,6 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 	ch <- res
 	close(ch)
 	delete(c.callbacks, id)
-}
-
-// A result is used to unmarshal JSON-RPC results, and to check for any errors.
-type result struct {
-	Reply interface{}
-	Err   *Error
-}
-
-// errPrefix is a prefix that occurs if an error is present in a JSON-RPC response.
-var errPrefix = []byte(`{"error":`)
-
-func (r *result) UnmarshalJSON(b []byte) error {
-	// No error? Return the result.
-	if !bytes.HasPrefix(b, errPrefix) {
-		return json.Unmarshal(b, r.Reply)
-	}
-
-	// Found an error, unmarshal and return it later.
-	var e Error
-	if err := json.Unmarshal(b, &e); err != nil {
-		return err
-	}
-
-	r.Err = &e
-	return nil
-}
-
-var _ error = &Error{}
-
-// An Error is an error returned by an OVSDB server.  Its fields can be
-// used to determine the cause of an error.
-type Error struct {
-	Err     string `json:"error"`
-	Details string `json:"details"`
-	Syntax  string `json:"syntax"`
-}
-
-func (e *Error) Error() string {
-	return fmt.Sprintf("%s: %s: %s", e.Err, e.Details, e.Syntax)
 }
 
 func panicf(format string, a ...interface{}) {
