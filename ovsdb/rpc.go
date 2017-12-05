@@ -14,10 +14,12 @@
 
 package ovsdb
 
+import "context"
+
 // ListDatabases returns the name of all databases known to the OVSDB server.
-func (c *Client) ListDatabases() ([]string, error) {
+func (c *Client) ListDatabases(ctx context.Context) ([]string, error) {
 	var dbs []string
-	if err := c.rpc("list_dbs", &dbs); err != nil {
+	if err := c.rpc(ctx, "list_dbs", &dbs); err != nil {
 		return nil, err
 	}
 

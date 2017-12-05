@@ -15,6 +15,7 @@
 package ovsdb_test
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -54,7 +55,7 @@ func TestClientIntegrationConcurrent(t *testing.T) {
 			<-sigC
 
 			for j := 0; j < 4; j++ {
-				_, err := c.ListDatabases()
+				_, err := c.ListDatabases(context.Background())
 				if err != nil {
 					panic(fmt.Sprintf("failed to query concurrently: %v", err))
 				}
@@ -72,7 +73,7 @@ func TestClientIntegrationConcurrent(t *testing.T) {
 }
 
 func testClientDatabases(t *testing.T, c *ovsdb.Client) {
-	dbs, err := c.ListDatabases()
+	dbs, err := c.ListDatabases(context.Background())
 	if err != nil {
 		t.Fatalf("failed to list databases: %v", err)
 	}

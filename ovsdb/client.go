@@ -15,7 +15,7 @@
 package ovsdb
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -40,11 +40,6 @@ type Client struct {
 	callbacks map[int]chan rpcResponse
 
 	wg *sync.WaitGroup
-}
-
-type rpcResponse struct {
-	Result json.RawMessage
-	Error  error
 }
 
 // An OptionFunc is a function which can configure a Client.
@@ -115,16 +110,21 @@ func (c *Client) Close() error {
 }
 
 // rpc performs a single RPC request, and checks the response for errors.
-func (c *Client) rpc(method string, out interface{}, args ...interface{}) error {
+func (c *Client) rpc(ctx context.Context, method string, out interface{}, args ...interface{}) error {
+	// Was the context canceled before sending the RPC?
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	// Unmarshal results into empty struct if no out specified.
 	if out == nil {
 		out = &struct{}{}
 	}
 
 	// Captures any OVSDB errors.
-	r := result{
-		Reply: out,
-	}
+	r := result{Reply: out}
 
 	req := jsonrpc.Request{
 		Method: method,
@@ -133,29 +133,23 @@ func (c *Client) rpc(method string, out interface{}, args ...interface{}) error 
 	}
 
 	// Add callback for this RPC ID to return results via channel.
-	ch := make(chan rpcResponse, 0)
+	ch := make(chan rpcResponse, 1)
+	defer close(ch)
 	c.addCallback(req.ID, ch)
 
 	if err := c.c.Send(req); err != nil {
 		return err
 	}
 
-	// Wait for callback to fire.
-	res := <-ch
-	if err := res.Error; err != nil {
-		return err
+	// Await RPC completion or cancelation.
+	select {
+	case <-ctx.Done():
+		// RPC canceled; clean up callback.
+		return c.cancelCallback(ctx, req.ID)
+	case res := <-ch:
+		// RPC complete.
+		return rpcResult(res, &r)
 	}
-
-	if err := json.Unmarshal(res.Result, &r); err != nil {
-		return err
-	}
-
-	// OVSDB server returned an error, return it.
-	if r.Err != nil {
-		return r.Err
-	}
-
-	return nil
 }
 
 // listen starts an RPC receive loop that can return RPC results to
@@ -216,10 +210,21 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 		return
 	}
 
-	// Return result, clean up channel, and remove this callback.
+	// Return result and remove this callback.
 	ch <- res
-	close(ch)
 	delete(c.callbacks, id)
+}
+
+// cancelCallback is invoked when an RPC is canceled by its context.
+func (c *Client) cancelCallback(ctx context.Context, id int) error {
+	// RPC canceled; acquire the callback mutex and clean up the callback
+	// for this RPC.
+	c.cbMu.Lock()
+	defer c.cbMu.Unlock()
+
+	delete(c.callbacks, id)
+
+	return ctx.Err()
 }
 
 func panicf(format string, a ...interface{}) {

@@ -15,11 +15,13 @@
 package ovsdb_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb"
 	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
@@ -37,7 +39,7 @@ func TestClientJSONRPCError(t *testing.T) {
 	})
 	defer done()
 
-	_, err := c.ListDatabases()
+	_, err := c.ListDatabases(context.Background())
 	if err == nil {
 		t.Fatal("expected an error, but none occurred")
 	}
@@ -58,7 +60,7 @@ func TestClientOVSDBError(t *testing.T) {
 	})
 	defer done()
 
-	_, err := c.ListDatabases()
+	_, err := c.ListDatabases(context.Background())
 	if err == nil {
 		t.Fatal("expected an error, but none occurred")
 	}
@@ -88,8 +90,57 @@ func TestClientBadCallback(t *testing.T) {
 		ID:     intPtr(10),
 	}
 
-	if _, err := c.ListDatabases(); err != nil {
+	if _, err := c.ListDatabases(context.Background()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestClientContextCancelBeforeRPC(t *testing.T) {
+	// Context canceled before RPC even begins.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+		return jsonrpc.Response{
+			ID:     intPtr(1),
+			Result: mustMarshalJSON(t, []string{"foo"}),
+		}
+	})
+	defer done()
+
+	_, err := c.ListDatabases(ctx)
+	if err != context.Canceled {
+		t.Fatalf("expected context canceled error: %v", err)
+	}
+}
+
+func TestClientContextCancelDuringRPC(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping during short test run")
+	}
+
+	// Context canceled during long RPC.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+		// RPC canceled; RPC server still processing.
+		// TODO(mdlayher): try to do something smarter than sleeping in a test.
+		cancel()
+		<-ctx.Done()
+
+		time.Sleep(500 * time.Millisecond)
+
+		return jsonrpc.Response{
+			ID:     intPtr(1),
+			Result: mustMarshalJSON(t, []string{"foo"}),
+		}
+	})
+	defer done()
+
+	_, err := c.ListDatabases(ctx)
+	if err != context.Canceled {
+		t.Fatalf("expected context canceled error: %v", err)
 	}
 }
 

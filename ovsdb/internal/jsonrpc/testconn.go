@@ -57,7 +57,7 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func())
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 
 	notifC := make(chan *Response, 16)
 
@@ -67,7 +67,7 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func())
 		// Accept a single connection.
 		c, err := l.Accept()
 		if err != nil {
-			if strings.Contains(err.Error(), "use of closed network") {
+			if isNetworkCloseError(err) {
 				return
 			}
 
@@ -76,14 +76,28 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func())
 		defer c.Close()
 
 		dec := json.NewDecoder(c)
+
+		var encMu sync.RWMutex
 		enc := json.NewEncoder(c)
 
 		// Push RPC notifications to the client.
+		var notifWG sync.WaitGroup
+		notifWG.Add(1)
+		defer notifWG.Wait()
+
 		go func() {
-			defer wg.Done()
+			defer notifWG.Done()
 
 			for n := range notifC {
-				if err := enc.Encode(n); err != nil {
+				encMu.Lock()
+				err := enc.Encode(n)
+				encMu.Unlock()
+
+				if err != nil {
+					if isNetworkCloseError(err) {
+						return
+					}
+
 					panicf("failed to encode notification: %v", err)
 				}
 			}
@@ -93,15 +107,24 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func())
 		for {
 			var req Request
 			if err := dec.Decode(&req); err != nil {
-				if err == io.EOF {
+				if isNetworkCloseError(err) {
 					return
 				}
 
-				panicf("failed to decode request: %v", err)
+				panicf("failed to decode request: %#v", err)
 			}
 
 			res := fn(req)
-			if err := enc.Encode(res); err != nil {
+
+			encMu.Lock()
+			err := enc.Encode(res)
+			encMu.Unlock()
+
+			if err != nil {
+				if isNetworkCloseError(err) {
+					return
+				}
+
 				panicf("failed to encode response: %v", err)
 			}
 		}
@@ -123,4 +146,10 @@ func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func())
 
 func panicf(format string, a ...interface{}) {
 	panic(fmt.Sprintf(format, a...))
+}
+
+func isNetworkCloseError(err error) bool {
+	return err == io.EOF ||
+		strings.Contains(err.Error(), "use of closed network") ||
+		strings.Contains(err.Error(), "connection reset by peer")
 }
