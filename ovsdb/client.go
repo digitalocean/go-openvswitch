@@ -213,7 +213,7 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 	ch, ok := c.callbacks[id]
 	if !ok {
 		// Nobody is listening to this callback.
-		panicf("OVSDB callback with ID %d has no listeners", id)
+		return
 	}
 
 	// Return result, clean up channel, and remove this callback.
