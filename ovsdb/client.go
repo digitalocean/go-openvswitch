@@ -161,6 +161,18 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 		Response: ch,
 	})
 
+	// Ensure that the callback is always cleaned up on return from this function.
+	// Note that this will result in the callback being deleted twice if the RPC
+	// returns successfully, but that's okay; it's a no-op.
+	//
+	// TODO(mdlayher): a more robust solution around callback map modifications.
+	defer func() {
+		c.cbMu.Lock()
+		defer c.cbMu.Unlock()
+
+		delete(c.callbacks, req.ID)
+	}()
+
 	if err := c.c.Send(req); err != nil {
 		return err
 	}
@@ -168,15 +180,9 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 	// Await RPC completion or cancelation.
 	select {
 	case <-ctx.Done():
-		// RPC canceled.  Clean up the callback in case no message ever arrives
-		// with its request ID, so we don't leak callbacks.  If the other case
-		// in the select fires (meaning we got a matching RPC response), it's
-		// the producer's responsibility to clean up the callback.
-		c.cbMu.Lock()
-		defer c.cbMu.Unlock()
-
-		delete(c.callbacks, req.ID)
-
+		// RPC canceled.  The callback is cleaned up by deferred function in
+		// case no message ever arrives with its request ID, so we don't leak
+		// callbacks.
 		return ctx.Err()
 	case res, ok := <-ch:
 		if !ok {
