@@ -146,9 +146,16 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 	// Await RPC completion or cancelation.
 	select {
 	case <-ctx.Done():
-		// RPC canceled; clean up callback.
-		return c.cancelCallback(ctx, req.ID)
-	case res := <-ch:
+		// RPC canceled.  Producer cleans up the callback.
+		return ctx.Err()
+	case res, ok := <-ch:
+		if !ok {
+			// Channel was closed by producer after a context cancelation,
+			// and woke up this consumer.  The select statement happened
+			// to pick this case even though the context was canceled.
+			return ctx.Err()
+		}
+
 		// RPC complete.
 		return rpcResult(res, &r)
 	}
@@ -230,18 +237,6 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 	}
 
 	delete(c.callbacks, id)
-}
-
-// cancelCallback is invoked when an RPC is canceled by its context.
-func (c *Client) cancelCallback(ctx context.Context, id int) error {
-	// RPC canceled; acquire the callback mutex and clean up the callback
-	// for this RPC.
-	c.cbMu.Lock()
-	defer c.cbMu.Unlock()
-
-	delete(c.callbacks, id)
-
-	return ctx.Err()
 }
 
 func panicf(format string, a ...interface{}) {
