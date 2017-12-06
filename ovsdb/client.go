@@ -37,7 +37,7 @@ type Client struct {
 
 	// Callbacks for RPC responses.
 	cbMu      sync.RWMutex
-	callbacks map[int]chan rpcResponse
+	callbacks map[int]callback
 
 	wg *sync.WaitGroup
 }
@@ -80,7 +80,7 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 	client.c = jsonrpc.NewConn(conn, client.ll)
 
 	// Set up callbacks.
-	client.callbacks = make(map[int]chan rpcResponse)
+	client.callbacks = make(map[int]callback)
 
 	// Start up any background routines.
 	var wg sync.WaitGroup
@@ -134,8 +134,10 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 
 	// Add callback for this RPC ID to return results via channel.
 	ch := make(chan rpcResponse, 1)
-	defer close(ch)
-	c.addCallback(req.ID, ch)
+	c.addCallback(req.ID, callback{
+		Ctx:      ctx,
+		Response: ch,
+	})
 
 	if err := c.c.Send(req); err != nil {
 		return err
@@ -144,9 +146,16 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 	// Await RPC completion or cancelation.
 	select {
 	case <-ctx.Done():
-		// RPC canceled; clean up callback.
-		return c.cancelCallback(ctx, req.ID)
-	case res := <-ch:
+		// RPC canceled.  Producer cleans up the callback.
+		return ctx.Err()
+	case res, ok := <-ch:
+		if !ok {
+			// Channel was closed by producer after a context cancelation,
+			// and woke up this consumer.  The select statement happened
+			// to pick this case even though the context was canceled.
+			return ctx.Err()
+		}
+
 		// RPC complete.
 		return rpcResult(res, &r)
 	}
@@ -184,9 +193,15 @@ func (c *Client) listen() {
 	}
 }
 
-// addCallback registers a callback for an RPC response for the specified ID,
-// and accepts a channel to return the results on.
-func (c *Client) addCallback(id int, ch chan rpcResponse) {
+// A callback can be used to send a message back to a caller, or
+// allow the caller to cancel waiting for a message.
+type callback struct {
+	Ctx      context.Context
+	Response chan rpcResponse
+}
+
+// addCallback registers a callback for an RPC response for the specified ID.
+func (c *Client) addCallback(id int, cb callback) {
 	c.cbMu.Lock()
 	defer c.cbMu.Unlock()
 
@@ -195,7 +210,7 @@ func (c *Client) addCallback(id int, ch chan rpcResponse) {
 		panicf("OVSDB callback with ID %d already registered", id)
 	}
 
-	c.callbacks[id] = ch
+	c.callbacks[id] = cb
 }
 
 // doCallback performs a callback for an RPC response and clears the
@@ -204,27 +219,24 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 	c.cbMu.Lock()
 	defer c.cbMu.Unlock()
 
-	ch, ok := c.callbacks[id]
+	cb, ok := c.callbacks[id]
 	if !ok {
 		// Nobody is listening to this callback.
 		return
 	}
 
-	// Return result and remove this callback.
-	ch <- res
+	// Producer can safely close channel on return.
+	defer close(cb.Response)
+
+	// Wait for send or cancelation.
+	select {
+	case <-cb.Ctx.Done():
+		// Request's context was canceled.
+	case cb.Response <- res:
+		// Message was successfully sent.
+	}
+
 	delete(c.callbacks, id)
-}
-
-// cancelCallback is invoked when an RPC is canceled by its context.
-func (c *Client) cancelCallback(ctx context.Context, id int) error {
-	// RPC canceled; acquire the callback mutex and clean up the callback
-	// for this RPC.
-	c.cbMu.Lock()
-	defer c.cbMu.Unlock()
-
-	delete(c.callbacks, id)
-
-	return ctx.Err()
 }
 
 func panicf(format string, a ...interface{}) {
