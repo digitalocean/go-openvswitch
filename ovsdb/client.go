@@ -109,6 +109,28 @@ func (c *Client) Close() error {
 	return err
 }
 
+// Stats returns a ClientStats with current statistics for the Cient.
+func (c *Client) Stats() ClientStats {
+	var s ClientStats
+
+	c.cbMu.RLock()
+	defer c.cbMu.RUnlock()
+
+	s.Callbacks.Current = len(c.callbacks)
+
+	return s
+}
+
+// ClientStats contains statistics about a Client.
+type ClientStats struct {
+	// Statistics about the Client's internal callbacks.
+	Callbacks struct {
+		// The number of callback hooks currently registered and waiting
+		// for RPC responses.
+		Current int
+	}
+}
+
 // rpc performs a single RPC request, and checks the response for errors.
 func (c *Client) rpc(ctx context.Context, method string, out interface{}, args ...interface{}) error {
 	// Was the context canceled before sending the RPC?
