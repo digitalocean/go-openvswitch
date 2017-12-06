@@ -26,6 +26,31 @@ type result struct {
 	Err   *Error
 }
 
+// An rpcResponse is a response used in RPC callbacks.
+type rpcResponse struct {
+	Result json.RawMessage
+	Error  error
+}
+
+// rpcResult handles any errors from an rpcResponse and unmarshals results into
+// a result.
+func rpcResult(res rpcResponse, r *result) error {
+	if err := res.Error; err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(res.Result, &r); err != nil {
+		return err
+	}
+
+	// OVSDB server returned an error, return it.
+	if r.Err != nil {
+		return r.Err
+	}
+
+	return nil
+}
+
 // errPrefix is a prefix that occurs if an error is present in a JSON-RPC response.
 var errPrefix = []byte(`{"error":`)
 

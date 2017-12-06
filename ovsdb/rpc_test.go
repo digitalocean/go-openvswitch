@@ -15,6 +15,7 @@
 package ovsdb_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
@@ -40,7 +41,7 @@ func TestClientListDatabases(t *testing.T) {
 	})
 	defer done()
 
-	dbs, err := c.ListDatabases()
+	dbs, err := c.ListDatabases(context.Background())
 	if err != nil {
 		t.Fatalf("failed to list databases: %v", err)
 	}
