@@ -109,7 +109,7 @@ func (c *Client) Close() error {
 	return err
 }
 
-// Stats returns a ClientStats with current statistics for the Cient.
+// Stats returns a ClientStats with current statistics for the Client.
 func (c *Client) Stats() ClientStats {
 	var s ClientStats
 
