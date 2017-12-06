@@ -195,6 +195,13 @@ func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, chan<- *jsonr
 	return c, notifC, func() {
 		_ = c.Close()
 		done()
+
+		// Make sure that the Client cleaned up appropriately.
+		stats := c.Stats()
+
+		if diff := cmp.Diff(0, stats.Callbacks.Current); diff != "" {
+			t.Fatalf("unexpected final number of callbacks (-want +got):\n%s", diff)
+		}
 	}
 }
 
