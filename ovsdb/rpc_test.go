@@ -50,3 +50,41 @@ func TestClientListDatabases(t *testing.T) {
 		t.Fatalf("unexpected databases (-want +got):\n%s", diff)
 	}
 }
+
+func TestClientEchoError(t *testing.T) {
+	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+		return jsonrpc.Response{
+			ID:     intPtr(1),
+			Result: mustMarshalJSON(t, []string{"foo"}),
+		}
+	})
+	defer done()
+
+	if err := c.Echo(context.Background()); err == nil {
+		t.Fatal("expected an error, but none occurred")
+	}
+}
+
+func TestClientEchoOK(t *testing.T) {
+	const echo = "github.com/digitalocean/go-openvswitch/ovsdb"
+
+	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+		if diff := cmp.Diff("echo", req.Method); diff != "" {
+			panicf("unexpected RPC method (-want +got):\n%s", diff)
+		}
+
+		if diff := cmp.Diff([]interface{}{echo}, req.Params); diff != "" {
+			panicf("unexpected RPC parameters (-want +got):\n%s", diff)
+		}
+
+		return jsonrpc.Response{
+			ID:     intPtr(1),
+			Result: mustMarshalJSON(t, []string{echo}),
+		}
+	})
+	defer done()
+
+	if err := c.Echo(context.Background()); err != nil {
+		t.Fatalf("failed to echo: %v", err)
+	}
+}

@@ -28,6 +28,9 @@ func TestClientIntegration(t *testing.T) {
 	c := dialOVSDB(t)
 	defer c.Close()
 
+	t.Run("echo", func(t *testing.T) {
+		testClientEcho(t, c)
+	})
 	t.Run("databases", func(t *testing.T) {
 		testClientDatabases(t, c)
 	})
@@ -82,6 +85,12 @@ func testClientDatabases(t *testing.T, c *ovsdb.Client) {
 
 	if diff := cmp.Diff(want, dbs); diff != "" {
 		t.Fatalf("unexpected databases (-want +got):\n%s", diff)
+	}
+}
+
+func testClientEcho(t *testing.T, c *ovsdb.Client) {
+	if err := c.Echo(context.Background()); err != nil {
+		t.Fatalf("failed to echo: %v", err)
 	}
 }
 
