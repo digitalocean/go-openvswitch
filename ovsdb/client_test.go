@@ -144,6 +144,44 @@ func TestClientContextCancelDuringRPC(t *testing.T) {
 	}
 }
 
+func TestClientLeakCallbacks(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping during short test run")
+	}
+
+	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
+		// Only respond with messages that don't match an incoming request.
+		return jsonrpc.Response{
+			ID:     intPtr(100),
+			Result: mustMarshalJSON(t, []string{"foo"}),
+		}
+	})
+	defer done()
+
+	// Expect no callbacks registered before RPCs, and none after RPCs time out.
+	var want ovsdb.ClientStats
+	want.Callbacks.Current = 0
+
+	if diff := cmp.Diff(want, c.Stats()); diff != "" {
+		t.Fatalf("unexpected starting client stats (-want +got):\n%s", diff)
+	}
+
+	for i := 0; i < 5; i++ {
+		// Give enough time for an RPC to be sent so we don't immediately time out.
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		_, err := c.ListDatabases(ctx)
+		if err != context.DeadlineExceeded {
+			t.Fatalf("expected context deadline exceeded error: %v", err)
+		}
+	}
+
+	if diff := cmp.Diff(want, c.Stats()); diff != "" {
+		t.Fatalf("unexpected ending client stats (-want +got):\n%s", diff)
+	}
+}
+
 func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
 	t.Helper()
 

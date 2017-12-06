@@ -168,7 +168,15 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 	// Await RPC completion or cancelation.
 	select {
 	case <-ctx.Done():
-		// RPC canceled.  Producer cleans up the callback.
+		// RPC canceled.  Clean up the callback in case no message ever arrives
+		// with its request ID, so we don't leak callbacks.  If the other case
+		// in the select fires (meaning we got a matching RPC response), it's
+		// the producer's responsibility to clean up the callback.
+		c.cbMu.Lock()
+		defer c.cbMu.Unlock()
+
+		delete(c.callbacks, req.ID)
+
 		return ctx.Err()
 	case res, ok := <-ch:
 		if !ok {
