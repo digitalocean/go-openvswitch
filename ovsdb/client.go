@@ -109,6 +109,28 @@ func (c *Client) Close() error {
 	return err
 }
 
+// Stats returns a ClientStats with current statistics for the Cient.
+func (c *Client) Stats() ClientStats {
+	var s ClientStats
+
+	c.cbMu.RLock()
+	defer c.cbMu.RUnlock()
+
+	s.Callbacks.Current = len(c.callbacks)
+
+	return s
+}
+
+// ClientStats contains statistics about a Client.
+type ClientStats struct {
+	// Statistics about the Client's internal callbacks.
+	Callbacks struct {
+		// The number of callback hooks currently registered and waiting
+		// for RPC responses.
+		Current int
+	}
+}
+
 // rpc performs a single RPC request, and checks the response for errors.
 func (c *Client) rpc(ctx context.Context, method string, out interface{}, args ...interface{}) error {
 	// Was the context canceled before sending the RPC?
@@ -139,6 +161,18 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 		Response: ch,
 	})
 
+	// Ensure that the callback is always cleaned up on return from this function.
+	// Note that this will result in the callback being deleted twice if the RPC
+	// returns successfully, but that's okay; it's a no-op.
+	//
+	// TODO(mdlayher): a more robust solution around callback map modifications.
+	defer func() {
+		c.cbMu.Lock()
+		defer c.cbMu.Unlock()
+
+		delete(c.callbacks, req.ID)
+	}()
+
 	if err := c.c.Send(req); err != nil {
 		return err
 	}
@@ -146,7 +180,9 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 	// Await RPC completion or cancelation.
 	select {
 	case <-ctx.Done():
-		// RPC canceled.  Producer cleans up the callback.
+		// RPC canceled.  The callback is cleaned up by deferred function in
+		// case no message ever arrives with its request ID, so we don't leak
+		// callbacks.
 		return ctx.Err()
 	case res, ok := <-ch:
 		if !ok {
