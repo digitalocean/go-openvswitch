@@ -20,6 +20,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,7 +41,7 @@ type Client struct {
 
 	// Callbacks for RPC responses.
 	cbMu      sync.RWMutex
-	callbacks map[int]callback
+	callbacks map[string]callback
 
 	// Interval at which echo RPCs should occur in the background, and statistics
 	// about the echo loop.
@@ -102,7 +103,7 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 	client.c = jsonrpc.NewConn(conn, client.ll)
 
 	// Set up callbacks.
-	client.callbacks = make(map[int]callback)
+	client.callbacks = make(map[string]callback)
 
 	// Start up any background routines, and enable canceling them via context.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,8 +137,10 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 }
 
 // requestID returns the next available request ID for an RPC.
-func (c *Client) requestID() int {
-	return int(atomic.AddInt64(c.rpcID, 1))
+func (c *Client) requestID() string {
+	// We use integer IDs by convention, but OVSDB happily accepts
+	// any non-null JSON value.
+	return strconv.FormatInt(atomic.AddInt64(c.rpcID, 1), 10)
 }
 
 // Close closes a Client's connection and cleans up its resources.
@@ -322,13 +325,13 @@ type callback struct {
 }
 
 // addCallback registers a callback for an RPC response for the specified ID.
-func (c *Client) addCallback(id int, cb callback) {
+func (c *Client) addCallback(id string, cb callback) {
 	c.cbMu.Lock()
 	defer c.cbMu.Unlock()
 
 	if _, ok := c.callbacks[id]; ok {
 		// This ID was already registered.
-		panicf("OVSDB callback with ID %d already registered", id)
+		panicf("OVSDB callback with ID %q already registered", id)
 	}
 
 	c.callbacks[id] = cb
@@ -336,7 +339,7 @@ func (c *Client) addCallback(id int, cb callback) {
 
 // doCallback performs a callback for an RPC response and clears the
 // callback on completion.
-func (c *Client) doCallback(id int, res rpcResponse) {
+func (c *Client) doCallback(id string, res rpcResponse) {
 	c.cbMu.Lock()
 	defer c.cbMu.Unlock()
 

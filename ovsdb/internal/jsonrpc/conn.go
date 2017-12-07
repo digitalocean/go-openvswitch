@@ -25,7 +25,7 @@ import (
 
 // A Request is a JSON-RPC request.
 type Request struct {
-	ID     int           `json:"id"`
+	ID     string        `json:"id"`
 	Method string        `json:"method"`
 	Params []interface{} `json:"params"`
 }
@@ -33,7 +33,7 @@ type Request struct {
 // A Response is either a JSON-RPC response, or a JSON-RPC request notification.
 type Response struct {
 	// Non-null for response; null for request notification.
-	ID *int `json:"id"`
+	ID *string `json:"id"`
 
 	// Response fields.
 	Result json.RawMessage `json:"result,omitempty"`
@@ -91,8 +91,8 @@ func (c *Conn) Close() error {
 
 // Send sends a single JSON-RPC request.
 func (c *Conn) Send(req Request) error {
-	if req.ID == 0 {
-		return errors.New("JSON-RPC request ID must be non-zero")
+	if req.ID == "" {
+		return errors.New("JSON-RPC request ID must not be empty")
 	}
 
 	// Non-nil array required for ovsdb-server to reply.

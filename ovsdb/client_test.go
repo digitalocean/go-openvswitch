@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestClientJSONRPCError(t *testing.T) {
 
 	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID:    intPtr(1),
+			ID:    strPtr("1"),
 			Error: str,
 		}
 	})
@@ -51,7 +52,7 @@ func TestClientOVSDBError(t *testing.T) {
 
 	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID: intPtr(1),
+			ID: strPtr("1"),
 			Result: mustMarshalJSON(t, &ovsdb.Error{
 				Err:     str,
 				Details: "malformed",
@@ -79,7 +80,7 @@ func TestClientOVSDBError(t *testing.T) {
 func TestClientBadCallback(t *testing.T) {
 	c, notifC, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, []string{"foo"}),
 		}
 	})
@@ -88,7 +89,7 @@ func TestClientBadCallback(t *testing.T) {
 	// Client doesn't have a callback for this ID.
 	notifC <- &jsonrpc.Response{
 		Method: "crash",
-		ID:     intPtr(10),
+		ID:     strPtr("foo"),
 	}
 
 	if _, err := c.ListDatabases(context.Background()); err != nil {
@@ -103,7 +104,7 @@ func TestClientContextCancelBeforeRPC(t *testing.T) {
 
 	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, []string{"foo"}),
 		}
 	})
@@ -133,7 +134,7 @@ func TestClientContextCancelDuringRPC(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, []string{"foo"}),
 		}
 	})
@@ -153,7 +154,7 @@ func TestClientLeakCallbacks(t *testing.T) {
 	c, _, done := testClient(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		// Only respond with messages that don't match an incoming request.
 		return jsonrpc.Response{
-			ID:     intPtr(100),
+			ID:     strPtr("foo"),
 			Result: mustMarshalJSON(t, []string{"foo"}),
 		}
 	})
@@ -198,7 +199,7 @@ func TestClientEchoLoop(t *testing.T) {
 		}
 
 		// Keep incrementing the request ID to match the client.
-		id := int(atomic.AddInt64(&reqID, 1))
+		id := strconv.Itoa(int(atomic.AddInt64(&reqID, 1)))
 		return jsonrpc.Response{
 			ID:     &id,
 			Result: mustMarshalJSON(t, req.Params),
@@ -273,8 +274,8 @@ func mustMarshalJSON(t *testing.T, v interface{}) []byte {
 	return b
 }
 
-func intPtr(i int) *int {
-	return &i
+func strPtr(s string) *string {
+	return &s
 }
 
 func panicf(format string, a ...interface{}) {
