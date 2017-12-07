@@ -51,7 +51,7 @@ func TestConnSendReceiveError(t *testing.T) {
 
 	c, _, done := jsonrpc.TestConn(t, func(_ jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID: intPtr(10),
+			ID: strPtr("10"),
 			Error: rpcError{
 				Details: "some error",
 			},
@@ -59,7 +59,7 @@ func TestConnSendReceiveError(t *testing.T) {
 	})
 	defer done()
 
-	if err := c.Send(jsonrpc.Request{ID: 10}); err != nil {
+	if err := c.Send(jsonrpc.Request{ID: "10"}); err != nil {
 		t.Fatalf("failed to send request: %v", err)
 	}
 
@@ -77,7 +77,7 @@ func TestConnSendReceiveOK(t *testing.T) {
 	req := jsonrpc.Request{
 		Method: "hello",
 		Params: []interface{}{"world"},
-		ID:     1,
+		ID:     "1",
 	}
 
 	type message struct {
@@ -94,7 +94,7 @@ func TestConnSendReceiveOK(t *testing.T) {
 		}
 
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, want),
 		}
 	})
@@ -124,7 +124,7 @@ func TestConnSendReceiveOK(t *testing.T) {
 }
 
 func TestConnSendReceiveNotificationsOK(t *testing.T) {
-	const id = 10
+	const id = "10"
 
 	req := jsonrpc.Request{
 		ID:     id,
@@ -133,7 +133,7 @@ func TestConnSendReceiveNotificationsOK(t *testing.T) {
 	}
 
 	res := jsonrpc.Response{
-		ID:     intPtr(id),
+		ID:     strPtr(id),
 		Result: mustMarshalJSON(t, "some bytes"),
 	}
 
@@ -198,8 +198,8 @@ func mustMarshalJSON(t *testing.T, v interface{}) []byte {
 	return b
 }
 
-func intPtr(i int) *int {
-	return &i
+func strPtr(s string) *string {
+	return &s
 }
 
 func panicf(format string, a ...interface{}) {

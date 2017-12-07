@@ -35,7 +35,7 @@ func TestClientListDatabases(t *testing.T) {
 		}
 
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, want),
 		}
 	})
@@ -54,7 +54,7 @@ func TestClientListDatabases(t *testing.T) {
 func TestClientEchoError(t *testing.T) {
 	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, []string{"foo"}),
 		}
 	})
@@ -78,7 +78,7 @@ func TestClientEchoOK(t *testing.T) {
 		}
 
 		return jsonrpc.Response{
-			ID:     intPtr(1),
+			ID:     strPtr("1"),
 			Result: mustMarshalJSON(t, []string{echo}),
 		}
 	})
