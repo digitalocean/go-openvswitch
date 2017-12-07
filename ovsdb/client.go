@@ -65,10 +65,15 @@ func Debug(ll *log.Logger) OptionFunc {
 }
 
 // EchoInterval specifies an interval at which the Client will send
-// echo RPCs to an OVSDB server to keep the connection alive.  If this
-// option is not used, the Client will not send any echo RPCs on its own.
+// echo RPCs to an OVSDB server to keep the connection alive.  Note that the
+// OVSDB server may also send its own echo RPCs to the Client, and the Client
+// will always reply to those on behalf of the user.
 //
-// Specify a duration of 0 to disable sending background echo RPCs.
+// If this option is not used, the Client will only send echo RPCs when the
+// server sends an echo RPC to it.
+//
+// Specify a duration of 0 to disable sending background echo RPCs at a
+// fixed interval.
 func EchoInterval(d time.Duration) OptionFunc {
 	return func(c *Client) error {
 		c.echoInterval = d
@@ -105,30 +110,40 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 	// Set up callbacks.
 	client.callbacks = make(map[string]callback)
 
+	// Set up echo loop statistics.
+	var echoOK, echoFail int64
+	client.echoOK = &echoOK
+	client.echoFail = &echoFail
+
+	// Coordinates the sending of echo messages among multiple goroutines.
+	echoC := make(chan struct{})
+
 	// Start up any background routines, and enable canceling them via context.
 	ctx, cancel := context.WithCancel(context.Background())
 	client.cancel = cancel
 
 	var wg sync.WaitGroup
-	wg.Add(1)
+	wg.Add(2)
 
-	// If configured, send echo RPCs in the background at a fixed interval.
-	var echoOK, echoFail int64
-	client.echoOK = &echoOK
-	client.echoFail = &echoFail
-
+	// If configured, trigger echo RPCs in the background at a fixed interval.
 	if d := client.echoInterval; d != 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			client.echoLoop(ctx, d)
+			client.echoTicker(ctx, d, echoC)
 		}()
 	}
+
+	// Send echo RPCs when triggered by channel.
+	go func() {
+		defer wg.Done()
+		client.echoLoop(ctx, echoC)
+	}()
 
 	// Handle all incoming RPC responses and notifications.
 	go func() {
 		defer wg.Done()
-		client.listen()
+		client.listen(ctx, echoC)
 	}()
 
 	client.wg = &wg
@@ -175,7 +190,6 @@ type ClientStats struct {
 	}
 
 	// Statistics about the Client's internal echo RPC loop.
-	// Note that all counters will be zero if the echo loop is disabled.
 	EchoLoop struct {
 		// The number of successful and failed echo RPCs in the loop.
 		Success, Failure int
@@ -250,7 +264,7 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 
 // listen starts an RPC receive loop that can return RPC results to
 // clients via a callback.
-func (c *Client) listen() {
+func (c *Client) listen(ctx context.Context, echoC chan<- struct{}) {
 	for {
 		res, err := c.c.Receive()
 		if err != nil {
@@ -263,7 +277,20 @@ func (c *Client) listen() {
 			continue
 		}
 
-		// TODO(mdlayher): deal with RPC notifications.
+		// Handle any JSON-RPC notifications.
+		// TODO(mdlayher): deal with other RPC notifications.
+		switch res.Method {
+		case "echo":
+			// OVSDB server wants us to send an echo to it, but will also send
+			// us a response to that echo.  Since this goroutine is the one that
+			// needs to receive that response and issue the callback for it, we
+			// ask the echo loop goroutine to send an echo on our behalf.
+			select {
+			case <-ctx.Done():
+			case echoC <- struct{}{}:
+			}
+			continue
+		}
 
 		// Handle any JSON-RPC top-level errors.
 		if err := res.Err(); err != nil {
@@ -280,18 +307,43 @@ func (c *Client) listen() {
 	}
 }
 
-// echoLoop starts a loop that sends echo RPCs at the interval defined by d.
-func (c *Client) echoLoop(ctx context.Context, d time.Duration) {
+// echoTicker starts a loop that triggers echo RPCs via channel at a fixed
+// time interval.
+func (c *Client) echoTicker(ctx context.Context, d time.Duration, echoC chan<- struct{}) {
 	t := time.NewTicker(d)
 	defer t.Stop()
 
 	for {
-		// If context is canceled, we should exit this loop.  If a tick is fired
+		// If context is canceled, we should exit this loop.  If a request is fired
 		// and the context was already canceled, we exit there as well.
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			if err := ctx.Err(); err != nil {
+				return
+			}
+		}
+
+		// Allow producer to stop if context closed instead of blocking if
+		// the consumer is stopped.
+		select {
+		case <-ctx.Done():
+			return
+		case echoC <- struct{}{}:
+		}
+	}
+}
+
+// echoLoop starts a loop that sends echo RPCs when requested via channel.
+func (c *Client) echoLoop(ctx context.Context, echoC <-chan struct{}) {
+	for {
+		// If context is canceled, we should exit this loop.  If a request is fired
+		// and the context was already canceled, we exit there as well.
+		select {
+		case <-ctx.Done():
+			return
+		case <-echoC:
 			if err := ctx.Err(); err != nil {
 				return
 			}
