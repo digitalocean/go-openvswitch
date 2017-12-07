@@ -37,7 +37,7 @@ type Client struct {
 	ll *log.Logger
 
 	// Incremented atomically when sending RPCs.
-	rpcID *int64
+	rpcID int64
 
 	// Callbacks for RPC responses.
 	cbMu      sync.RWMutex
@@ -46,7 +46,7 @@ type Client struct {
 	// Interval at which echo RPCs should occur in the background, and statistics
 	// about the echo loop.
 	echoInterval     time.Duration
-	echoOK, echoFail *int64
+	echoOK, echoFail int64
 
 	// Track and clean up background goroutines.
 	cancel func()
@@ -100,20 +100,11 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 		}
 	}
 
-	// Set up RPC request IDs.
-	var rpcID int64
-	client.rpcID = &rpcID
-
 	// Set up the JSON-RPC connection.
 	client.c = jsonrpc.NewConn(conn, client.ll)
 
 	// Set up callbacks.
 	client.callbacks = make(map[string]callback)
-
-	// Set up echo loop statistics.
-	var echoOK, echoFail int64
-	client.echoOK = &echoOK
-	client.echoFail = &echoFail
 
 	// Coordinates the sending of echo messages among multiple goroutines.
 	echoC := make(chan struct{})
@@ -155,7 +146,7 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 func (c *Client) requestID() string {
 	// We use integer IDs by convention, but OVSDB happily accepts
 	// any non-null JSON value.
-	return strconv.FormatInt(atomic.AddInt64(c.rpcID, 1), 10)
+	return strconv.FormatInt(atomic.AddInt64(&c.rpcID, 1), 10)
 }
 
 // Close closes a Client's connection and cleans up its resources.
@@ -174,8 +165,8 @@ func (c *Client) Stats() ClientStats {
 	s.Callbacks.Current = len(c.callbacks)
 	c.cbMu.RUnlock()
 
-	s.EchoLoop.Success = int(atomic.LoadInt64(c.echoOK))
-	s.EchoLoop.Failure = int(atomic.LoadInt64(c.echoFail))
+	s.EchoLoop.Success = int(atomic.LoadInt64(&c.echoOK))
+	s.EchoLoop.Failure = int(atomic.LoadInt64(&c.echoFail))
 
 	return s
 }
@@ -361,11 +352,11 @@ func (c *Client) echoLoop(ctx context.Context, echoC <-chan struct{}) {
 			}
 
 			// Count other errors as failures.
-			atomic.AddInt64(c.echoFail, 1)
+			atomic.AddInt64(&c.echoFail, 1)
 			continue
 		}
 
-		atomic.AddInt64(c.echoOK, 1)
+		atomic.AddInt64(&c.echoOK, 1)
 	}
 }
 
