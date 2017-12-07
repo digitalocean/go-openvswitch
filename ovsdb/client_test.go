@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -182,12 +183,68 @@ func TestClientLeakCallbacks(t *testing.T) {
 	}
 }
 
-func testClient(t *testing.T, fn jsonrpc.TestFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
+func TestClientEchoLoop(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping during short test run")
+	}
+
+	// Count the number of requests sent to the server.
+	echo := ovsdb.EchoInterval(50 * time.Millisecond)
+	var reqID int64
+
+	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+		if diff := cmp.Diff("echo", req.Method); diff != "" {
+			panicf("unexpected RPC method (-want +got):\n%s", diff)
+		}
+
+		// Keep incrementing the request ID to match the client.
+		id := int(atomic.AddInt64(&reqID, 1))
+		return jsonrpc.Response{
+			ID:     &id,
+			Result: mustMarshalJSON(t, req.Params),
+		}
+	}, echo)
+	defer done()
+
+	// Fail the test if the RPCs don't fire.
+	timer := time.AfterFunc(2*time.Second, func() {
+		panicf("took too long to wait for echo RPCs")
+	})
+	defer timer.Stop()
+
+	// Ensure that background echo RPCs are being sent.
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		// Just wait for a handful of RPCs to be sent before success.
+		<-tick.C
+
+		stats := c.Stats()
+
+		if n := stats.EchoLoop.Failure; n > 0 {
+			t.Fatalf("echo loop RPC failed %d times", n)
+		}
+
+		if n := stats.EchoLoop.Success; n > 5 {
+			break
+		}
+	}
+}
+
+func testClient(t *testing.T, fn jsonrpc.TestFunc, options ...ovsdb.OptionFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
 	t.Helper()
+
+	// Prepend a verbose logger so the caller can override it easily.
+	if testing.Verbose() {
+		options = append([]ovsdb.OptionFunc{
+			ovsdb.Debug(log.New(os.Stderr, "", 0)),
+		}, options...)
+	}
 
 	conn, notifC, done := jsonrpc.TestNetConn(t, fn)
 
-	c, err := ovsdb.New(conn, ovsdb.Debug(log.New(os.Stderr, "", 0)))
+	c, err := ovsdb.New(conn, options...)
 	if err != nil {
 		t.Fatalf("failed to dial: %v", err)
 	}

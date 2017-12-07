@@ -23,12 +23,15 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
 )
 
-// A Client is an OVSDB client.
+// A Client is an OVSDB client.  Clients can be customized by using OptionFuncs
+// in the Dial and New functions.
 type Client struct {
+	// The RPC connection, and its logger.
 	c  *jsonrpc.Conn
 	ll *log.Logger
 
@@ -39,7 +42,14 @@ type Client struct {
 	cbMu      sync.RWMutex
 	callbacks map[int]callback
 
-	wg *sync.WaitGroup
+	// Interval at which echo RPCs should occur in the background, and statistics
+	// about the echo loop.
+	echoInterval     time.Duration
+	echoOK, echoFail *int64
+
+	// Track and clean up background goroutines.
+	cancel func()
+	wg     *sync.WaitGroup
 }
 
 // An OptionFunc is a function which can configure a Client.
@@ -49,6 +59,18 @@ type OptionFunc func(c *Client) error
 func Debug(ll *log.Logger) OptionFunc {
 	return func(c *Client) error {
 		c.ll = ll
+		return nil
+	}
+}
+
+// EchoInterval specifies an interval at which the Client will send
+// echo RPCs to an OVSDB server to keep the connection alive.  If this
+// option is not used, the Client will not send any echo RPCs on its own.
+//
+// Specify a duration of 0 to disable sending background echo RPCs.
+func EchoInterval(d time.Duration) OptionFunc {
+	return func(c *Client) error {
+		c.echoInterval = d
 		return nil
 	}
 }
@@ -82,9 +104,25 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 	// Set up callbacks.
 	client.callbacks = make(map[int]callback)
 
-	// Start up any background routines.
+	// Start up any background routines, and enable canceling them via context.
+	ctx, cancel := context.WithCancel(context.Background())
+	client.cancel = cancel
+
 	var wg sync.WaitGroup
 	wg.Add(1)
+
+	// If configured, send echo RPCs in the background at a fixed interval.
+	var echoOK, echoFail int64
+	client.echoOK = &echoOK
+	client.echoFail = &echoFail
+
+	if d := client.echoInterval; d != 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			client.echoLoop(ctx, d)
+		}()
+	}
 
 	// Handle all incoming RPC responses and notifications.
 	go func() {
@@ -102,8 +140,9 @@ func (c *Client) requestID() int {
 	return int(atomic.AddInt64(c.rpcID, 1))
 }
 
-// Close closes a Client's connection.
+// Close closes a Client's connection and cleans up its resources.
 func (c *Client) Close() error {
+	c.cancel()
 	err := c.c.Close()
 	c.wg.Wait()
 	return err
@@ -114,9 +153,11 @@ func (c *Client) Stats() ClientStats {
 	var s ClientStats
 
 	c.cbMu.RLock()
-	defer c.cbMu.RUnlock()
-
 	s.Callbacks.Current = len(c.callbacks)
+	c.cbMu.RUnlock()
+
+	s.EchoLoop.Success = int(atomic.LoadInt64(c.echoOK))
+	s.EchoLoop.Failure = int(atomic.LoadInt64(c.echoFail))
 
 	return s
 }
@@ -128,6 +169,13 @@ type ClientStats struct {
 		// The number of callback hooks currently registered and waiting
 		// for RPC responses.
 		Current int
+	}
+
+	// Statistics about the Client's internal echo RPC loop.
+	// Note that all counters will be zero if the echo loop is disabled.
+	EchoLoop struct {
+		// The number of successful and failed echo RPCs in the loop.
+		Success, Failure int
 	}
 }
 
@@ -204,7 +252,7 @@ func (c *Client) listen() {
 		res, err := c.c.Receive()
 		if err != nil {
 			// EOF or closed connection means time to stop serving.
-			if err == io.EOF || strings.Contains(err.Error(), "use of closed network") {
+			if err == io.EOF || isClosedNetwork(err) {
 				return
 			}
 
@@ -226,6 +274,43 @@ func (c *Client) listen() {
 		c.doCallback(*res.ID, rpcResponse{
 			Result: res.Result,
 		})
+	}
+}
+
+// echoLoop starts a loop that sends echo RPCs at the interval defined by d.
+func (c *Client) echoLoop(ctx context.Context, d time.Duration) {
+	t := time.NewTicker(d)
+	defer t.Stop()
+
+	for {
+		// If context is canceled, we should exit this loop.  If a tick is fired
+		// and the context was already canceled, we exit there as well.
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := ctx.Err(); err != nil {
+				return
+			}
+		}
+
+		// For the time being, we will track metrics about the number of successes
+		// and failures while sending echo RPCs.
+		// TODO(mdlayher): improve error handling for echo loop.
+		if err := c.Echo(ctx); err != nil {
+			if isClosedNetwork(err) {
+				// Our socket was closed, which means the context should be canceled
+				// and we should terminate on the next loop.  No need to increment
+				// errors counter.
+				continue
+			}
+
+			// Count other errors as failures.
+			atomic.AddInt64(c.echoFail, 1)
+			continue
+		}
+
+		atomic.AddInt64(c.echoOK, 1)
 	}
 }
 
@@ -273,6 +358,16 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 	}
 
 	delete(c.callbacks, id)
+}
+
+// isClosedNetwork checks for errors caused by a closed network connection.
+func isClosedNetwork(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Not an awesome solution, but see: https://github.com/golang/go/issues/4373.
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
 func panicf(format string, a ...interface{}) {
