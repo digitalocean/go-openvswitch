@@ -233,6 +233,55 @@ func TestClientEchoLoop(t *testing.T) {
 	}
 }
 
+func TestClientEchoNotification(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping during short test run")
+	}
+
+	c, notifC, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+		if diff := cmp.Diff("echo", req.Method); diff != "" {
+			panicf("unexpected RPC method (-want +got):\n%s", diff)
+		}
+
+		return jsonrpc.Response{
+			ID:     &req.ID,
+			Result: mustMarshalJSON(t, req.Params),
+		}
+	})
+	defer done()
+
+	// Prompt the client to send an echo in the same way ovsdb-server does.
+	notifC <- &jsonrpc.Response{
+		ID:     strPtr("echo"),
+		Method: "echo",
+	}
+
+	// Fail the test if the RPCs don't fire.
+	timer := time.AfterFunc(2*time.Second, func() {
+		panicf("took too long to wait for echo RPCs")
+	})
+	defer timer.Stop()
+
+	// Ensure that background echo RPCs are being sent.
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		// Just wait for a single echo RPC cycle before success.
+		<-tick.C
+
+		stats := c.Stats()
+
+		if n := stats.EchoLoop.Failure; n > 0 {
+			t.Fatalf("echo loop RPC failed %d times", n)
+		}
+
+		if n := stats.EchoLoop.Success; n > 0 {
+			break
+		}
+	}
+}
+
 func testClient(t *testing.T, fn jsonrpc.TestFunc, options ...ovsdb.OptionFunc) (*ovsdb.Client, chan<- *jsonrpc.Response, func()) {
 	t.Helper()
 
