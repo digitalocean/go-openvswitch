@@ -42,8 +42,10 @@ type Client struct {
 	cbMu      sync.RWMutex
 	callbacks map[int]callback
 
-	// Interval at which echo RPCs should occur in the background.
-	echoInterval time.Duration
+	// Interval at which echo RPCs should occur in the background, and statistics
+	// about the echo loop.
+	echoInterval     time.Duration
+	echoOK, echoFail *int64
 
 	// Track and clean up background goroutines.
 	cancel func()
@@ -110,6 +112,10 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 	wg.Add(1)
 
 	// If configured, send echo RPCs in the background at a fixed interval.
+	var echoOK, echoFail int64
+	client.echoOK = &echoOK
+	client.echoFail = &echoFail
+
 	if d := client.echoInterval; d != 0 {
 		wg.Add(1)
 		go func() {
@@ -136,8 +142,8 @@ func (c *Client) requestID() int {
 
 // Close closes a Client's connection and cleans up its resources.
 func (c *Client) Close() error {
-	err := c.c.Close()
 	c.cancel()
+	err := c.c.Close()
 	c.wg.Wait()
 	return err
 }
@@ -147,9 +153,11 @@ func (c *Client) Stats() ClientStats {
 	var s ClientStats
 
 	c.cbMu.RLock()
-	defer c.cbMu.RUnlock()
-
 	s.Callbacks.Current = len(c.callbacks)
+	c.cbMu.RUnlock()
+
+	s.EchoLoop.Success = int(atomic.LoadInt64(c.echoOK))
+	s.EchoLoop.Failure = int(atomic.LoadInt64(c.echoFail))
 
 	return s
 }
@@ -161,6 +169,13 @@ type ClientStats struct {
 		// The number of callback hooks currently registered and waiting
 		// for RPC responses.
 		Current int
+	}
+
+	// Statistics about the Client's internal echo RPC loop.
+	// Note that all counters will be zero if the echo loop is disabled.
+	EchoLoop struct {
+		// The number of successful and failed echo RPCs in the loop.
+		Success, Failure int
 	}
 }
 
@@ -237,7 +252,7 @@ func (c *Client) listen() {
 		res, err := c.c.Receive()
 		if err != nil {
 			// EOF or closed connection means time to stop serving.
-			if err == io.EOF || strings.Contains(err.Error(), "use of closed network") {
+			if err == io.EOF || isClosedNetwork(err) {
 				return
 			}
 
@@ -268,16 +283,34 @@ func (c *Client) echoLoop(ctx context.Context, d time.Duration) {
 	defer t.Stop()
 
 	for {
+		// If context is canceled, we should exit this loop.  If a tick is fired
+		// and the context was already canceled, we exit there as well.
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+			if err := ctx.Err(); err != nil {
+				return
+			}
 		}
 
-		// No feasible way to handle errors here.  In the future, it may be
-		// possible to do something like re-establishing the connection.
-		// TOOD(mdlayher): improve error handling for echo loop.
-		_ = c.Echo(ctx)
+		// For the time being, we will track metrics about the number of successes
+		// and failures while sending echo RPCs.
+		// TODO(mdlayher): improve error handling for echo loop.
+		if err := c.Echo(ctx); err != nil {
+			if isClosedNetwork(err) {
+				// Our socket was closed, which means the context should be canceled
+				// and we should terminate on the next loop.  No need to increment
+				// errors counter.
+				continue
+			}
+
+			// Count other errors as failures.
+			atomic.AddInt64(c.echoFail, 1)
+			continue
+		}
+
+		atomic.AddInt64(c.echoOK, 1)
 	}
 }
 
@@ -325,6 +358,16 @@ func (c *Client) doCallback(id int, res rpcResponse) {
 	}
 
 	delete(c.callbacks, id)
+}
+
+// isClosedNetwork checks for errors caused by a closed network connection.
+func isClosedNetwork(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Not an awesome solution, but see: https://github.com/golang/go/issues/4373.
+	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
 func panicf(format string, a ...interface{}) {

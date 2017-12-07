@@ -192,7 +192,7 @@ func TestClientEchoLoop(t *testing.T) {
 	echo := ovsdb.EchoInterval(50 * time.Millisecond)
 	var reqID int64
 
-	_, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
 		if diff := cmp.Diff("echo", req.Method); diff != "" {
 			panicf("unexpected RPC method (-want +got):\n%s", diff)
 		}
@@ -219,7 +219,14 @@ func TestClientEchoLoop(t *testing.T) {
 	for {
 		// Just wait for a handful of RPCs to be sent before success.
 		<-tick.C
-		if atomic.LoadInt64(&reqID) > 5 {
+
+		stats := c.Stats()
+
+		if n := stats.EchoLoop.Failure; n > 0 {
+			t.Fatalf("echo loop RPC failed %d times", n)
+		}
+
+		if n := stats.EchoLoop.Success; n > 5 {
 			break
 		}
 	}
