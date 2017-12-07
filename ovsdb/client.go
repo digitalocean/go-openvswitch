@@ -23,12 +23,15 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
 )
 
-// A Client is an OVSDB client.
+// A Client is an OVSDB client.  Clients can be customized by using OptionFuncs
+// in the Dial and New functions.
 type Client struct {
+	// The RPC connection, and its logger.
 	c  *jsonrpc.Conn
 	ll *log.Logger
 
@@ -39,7 +42,12 @@ type Client struct {
 	cbMu      sync.RWMutex
 	callbacks map[int]callback
 
-	wg *sync.WaitGroup
+	// Interval at which echo RPCs should occur in the background.
+	echoInterval time.Duration
+
+	// Track and clean up background goroutines.
+	cancel func()
+	wg     *sync.WaitGroup
 }
 
 // An OptionFunc is a function which can configure a Client.
@@ -49,6 +57,18 @@ type OptionFunc func(c *Client) error
 func Debug(ll *log.Logger) OptionFunc {
 	return func(c *Client) error {
 		c.ll = ll
+		return nil
+	}
+}
+
+// EchoInterval specifies an interval at which the Client will send
+// echo RPCs to an OVSDB server to keep the connection alive.  If this
+// option is not used, the Client will not send any echo RPCs on its own.
+//
+// Specify a duration of 0 to disable sending background echo RPCs.
+func EchoInterval(d time.Duration) OptionFunc {
+	return func(c *Client) error {
+		c.echoInterval = d
 		return nil
 	}
 }
@@ -82,9 +102,21 @@ func New(conn net.Conn, options ...OptionFunc) (*Client, error) {
 	// Set up callbacks.
 	client.callbacks = make(map[int]callback)
 
-	// Start up any background routines.
+	// Start up any background routines, and enable canceling them via context.
+	ctx, cancel := context.WithCancel(context.Background())
+	client.cancel = cancel
+
 	var wg sync.WaitGroup
 	wg.Add(1)
+
+	// If configured, send echo RPCs in the background at a fixed interval.
+	if d := client.echoInterval; d != 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			client.echoLoop(ctx, d)
+		}()
+	}
 
 	// Handle all incoming RPC responses and notifications.
 	go func() {
@@ -102,9 +134,10 @@ func (c *Client) requestID() int {
 	return int(atomic.AddInt64(c.rpcID, 1))
 }
 
-// Close closes a Client's connection.
+// Close closes a Client's connection and cleans up its resources.
 func (c *Client) Close() error {
 	err := c.c.Close()
+	c.cancel()
 	c.wg.Wait()
 	return err
 }
@@ -226,6 +259,25 @@ func (c *Client) listen() {
 		c.doCallback(*res.ID, rpcResponse{
 			Result: res.Result,
 		})
+	}
+}
+
+// echoLoop starts a loop that sends echo RPCs at the interval defined by d.
+func (c *Client) echoLoop(ctx context.Context, d time.Duration) {
+	t := time.NewTicker(d)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+
+		// No feasible way to handle errors here.  In the future, it may be
+		// possible to do something like re-establishing the connection.
+		// TOOD(mdlayher): improve error handling for echo loop.
+		_ = c.Echo(ctx)
 	}
 }
 
