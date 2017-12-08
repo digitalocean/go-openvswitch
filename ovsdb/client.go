@@ -32,21 +32,28 @@ import (
 // A Client is an OVSDB client.  Clients can be customized by using OptionFuncs
 // in the Dial and New functions.
 type Client struct {
-	// The RPC connection, and its logger.
-	c  *jsonrpc.Conn
-	ll *log.Logger
+	// NB: must 64-bit align these atomic integers, so they should appear first
+	// in the Client structure.
+	// See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
 
 	// Incremented atomically when sending RPCs.
 	rpcID int64
+
+	// Statistics about the echo loop.
+	echoOK, echoFail int64
+
+	// All other types should occur after atomic integers.
+
+	// The RPC connection, and its logger.
+	c  *jsonrpc.Conn
+	ll *log.Logger
 
 	// Callbacks for RPC responses.
 	cbMu      sync.RWMutex
 	callbacks map[string]callback
 
-	// Interval at which echo RPCs should occur in the background, and statistics
-	// about the echo loop.
-	echoInterval     time.Duration
-	echoOK, echoFail int64
+	// Interval at which echo RPCs should occur in the background.
+	echoInterval time.Duration
 
 	// Track and clean up background goroutines.
 	cancel func()
