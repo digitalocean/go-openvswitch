@@ -853,7 +853,7 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
  cookie=0x0, duration=9215.748s, table=0, n_packets=6, n_bytes=480, idle_age=9206, priority=820,in_port=LOCAL actions=mod_vlan_vid:10,output:1
 `,
 			want: []*Flow{
-				&Flow{
+				{
 					Priority: 820,
 					InPort:   PortLOCAL,
 					Matches:  []Match{},
@@ -877,7 +877,7 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
   cookie=0x0, duration=13.265s, table=12, n_packets=0, n_bytes=0, idle_age=13, priority=4321,tcp,tcp_flags=+syn-psh+ack actions=resubmit(,13)
 `,
 			want: []*Flow{
-				&Flow{
+				{
 					Priority: 820,
 					InPort:   PortLOCAL,
 					Matches:  []Match{},
@@ -887,7 +887,7 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 						Output(1),
 					},
 				},
-				&Flow{
+				{
 					Priority: 110,
 					Protocol: ProtocolIPv4,
 					Matches: []Match{
@@ -898,7 +898,7 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 						ConnectionTracking("table=51"),
 					},
 				},
-				&Flow{
+				{
 					Priority: 101,
 					Protocol: ProtocolIPv4,
 					Matches: []Match{
@@ -913,7 +913,7 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 						ConnectionTracking("commit,table=65"),
 					},
 				},
-				&Flow{
+				{
 					Priority: 4040,
 					Protocol: ProtocolIPv4,
 					Matches: []Match{
@@ -926,7 +926,7 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 						Output(19),
 					},
 				},
-				&Flow{
+				{
 					Priority: 4321,
 					Protocol: ProtocolTCPv4,
 					Matches: []Match{
