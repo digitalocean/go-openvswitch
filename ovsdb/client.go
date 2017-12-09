@@ -31,6 +31,11 @@ import (
 
 // A Client is an OVSDB client.  Clients can be customized by using OptionFuncs
 // in the Dial and New functions.
+//
+// All methods on the Client that accept a context.Context can use the context
+// to cancel or time out requests.  Some methods may use the context for advanced
+// use cases.  If this is the case, the documentation for the method will explain
+// these use cases.
 type Client struct {
 	// NB: must 64-bit align these atomic integers, so they should appear first
 	// in the Client structure.
