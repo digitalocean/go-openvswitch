@@ -22,7 +22,7 @@ import (
 // ListDatabases returns the name of all databases known to the OVSDB server.
 func (c *Client) ListDatabases(ctx context.Context) ([]string, error) {
 	var dbs []string
-	if err := c.rpc(ctx, "list_dbs", &dbs); err != nil {
+	if err := c.rpc(ctx, "list_dbs", &dbs, nil); err != nil {
 		return nil, err
 	}
 
@@ -32,14 +32,14 @@ func (c *Client) ListDatabases(ctx context.Context) ([]string, error) {
 // Echo verifies that the OVSDB connection is alive, and can be used to keep
 // the connection alive.
 func (c *Client) Echo(ctx context.Context) error {
-	const req = "github.com/digitalocean/go-openvswitch/ovsdb"
+	req := [1]string{"github.com/digitalocean/go-openvswitch/ovsdb"}
 
 	var res [1]string
 	if err := c.rpc(ctx, "echo", &res, req); err != nil {
 		return err
 	}
 
-	if res[0] != req {
+	if res[0] != req[0] {
 		return fmt.Errorf("invalid echo response: %q", res[0])
 	}
 
