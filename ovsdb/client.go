@@ -200,7 +200,7 @@ type ClientStats struct {
 }
 
 // rpc performs a single RPC request, and checks the response for errors.
-func (c *Client) rpc(ctx context.Context, method string, out interface{}, args ...interface{}) error {
+func (c *Client) rpc(ctx context.Context, method string, out, arg interface{}) error {
 	// Was the context canceled before sending the RPC?
 	select {
 	case <-ctx.Done():
@@ -218,7 +218,7 @@ func (c *Client) rpc(ctx context.Context, method string, out interface{}, args .
 
 	req := jsonrpc.Request{
 		Method: method,
-		Params: args,
+		Params: arg,
 		ID:     c.requestID(),
 	}
 

@@ -30,7 +30,10 @@ func TestClientListDatabases(t *testing.T) {
 			panicf("unexpected RPC method (-want +got):\n%s", diff)
 		}
 
-		if diff := cmp.Diff(0, len(req.Params)); diff != "" {
+		// Client should send an empty array parameter.
+		ps := req.Params.([]interface{})
+
+		if diff := cmp.Diff(0, len(ps)); diff != "" {
 			panicf("unexpected number of RPC parameters (-want +got):\n%s", diff)
 		}
 

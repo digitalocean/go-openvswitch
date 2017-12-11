@@ -25,9 +25,9 @@ import (
 
 // A Request is a JSON-RPC request.
 type Request struct {
-	ID     string        `json:"id"`
-	Method string        `json:"method"`
-	Params []interface{} `json:"params"`
+	ID     string      `json:"id"`
+	Method string      `json:"method"`
+	Params interface{} `json:"params"`
 }
 
 // A Response is either a JSON-RPC response, or a JSON-RPC request notification.
