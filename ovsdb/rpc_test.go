@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/digitalocean/go-openvswitch/ovsdb"
 	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
 	"github.com/google/go-cmp/cmp"
 )
@@ -89,5 +90,65 @@ func TestClientEchoOK(t *testing.T) {
 
 	if err := c.Echo(context.Background()); err != nil {
 		t.Fatalf("failed to echo: %v", err)
+	}
+}
+
+func TestClientTransactSelect(t *testing.T) {
+	const db = "Open_vSwitch"
+
+	c, _, done := testClient(t, func(req jsonrpc.Request) jsonrpc.Response {
+		if diff := cmp.Diff("transact", req.Method); diff != "" {
+			panicf("unexpected RPC method (-want +got):\n%s", diff)
+		}
+
+		// TODO(mdlayher): clean up with JSON unmarshaler implementations.
+		params := []interface{}{
+			db,
+			map[string]interface{}{
+				"op":    "select",
+				"table": "Bridge",
+				"where": []interface{}{
+					[]interface{}{"name", "==", "ovsbr0"},
+				},
+			},
+		}
+
+		if diff := cmp.Diff(params, req.Params); diff != "" {
+			panicf("unexpected RPC parameters (-want +got):\n%s", diff)
+		}
+
+		type result struct {
+			Rows []ovsdb.Row `json:"rows"`
+		}
+
+		return jsonrpc.Response{
+			ID: strPtr("1"),
+			Result: mustMarshalJSON(t, []result{{
+				Rows: []ovsdb.Row{{
+					"name": "ovsbr0",
+				}},
+			}}),
+		}
+	})
+	defer done()
+
+	ops := []ovsdb.TransactOp{ovsdb.Select{
+		Table: "Bridge",
+		Where: []ovsdb.Cond{
+			ovsdb.Equal("name", "ovsbr0"),
+		},
+	}}
+
+	rows, err := c.Transact(context.Background(), db, ops)
+	if err != nil {
+		t.Fatalf("failed to perform transaction: %v", err)
+	}
+
+	want := []ovsdb.Row{{
+		"name": "ovsbr0",
+	}}
+
+	if diff := cmp.Diff(want, rows); diff != "" {
+		t.Fatalf("unexpected rows (-want +got):\n%s", diff)
 	}
 }
