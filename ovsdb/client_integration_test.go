@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/digitalocean/go-openvswitch/ovsdb"
 	"github.com/google/go-cmp/cmp"
@@ -28,11 +29,16 @@ func TestClientIntegration(t *testing.T) {
 	c := dialOVSDB(t)
 	defer c.Close()
 
+	// Cancel RPCs if they take too long.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	t.Run("echo", func(t *testing.T) {
-		testClientEcho(t, c)
+		testClientEcho(ctx, t, c)
 	})
+
 	t.Run("databases", func(t *testing.T) {
-		testClientDatabases(t, c)
+		testClientDatabases(ctx, t, c)
 	})
 }
 
@@ -75,8 +81,8 @@ func TestClientIntegrationConcurrent(t *testing.T) {
 	doneWG.Wait()
 }
 
-func testClientDatabases(t *testing.T, c *ovsdb.Client) {
-	dbs, err := c.ListDatabases(context.Background())
+func testClientDatabases(ctx context.Context, t *testing.T, c *ovsdb.Client) {
+	dbs, err := c.ListDatabases(ctx)
 	if err != nil {
 		t.Fatalf("failed to list databases: %v", err)
 	}
@@ -86,10 +92,25 @@ func testClientDatabases(t *testing.T, c *ovsdb.Client) {
 	if diff := cmp.Diff(want, dbs); diff != "" {
 		t.Fatalf("unexpected databases (-want +got):\n%s", diff)
 	}
+
+	for _, d := range dbs {
+		rows, err := c.Transact(ctx, d, []ovsdb.TransactOp{
+			ovsdb.Select{
+				Table: "Bridge",
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to perform transaction: %v", err)
+		}
+
+		for i, r := range rows {
+			t.Logf("[%02d] %v", i, r)
+		}
+	}
 }
 
-func testClientEcho(t *testing.T, c *ovsdb.Client) {
-	if err := c.Echo(context.Background()); err != nil {
+func testClientEcho(ctx context.Context, t *testing.T, c *ovsdb.Client) {
+	if err := c.Echo(ctx); err != nil {
 		t.Fatalf("failed to echo: %v", err)
 	}
 }

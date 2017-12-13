@@ -45,3 +45,36 @@ func (c *Client) Echo(ctx context.Context) error {
 
 	return nil
 }
+
+// A Row is a database row.  Its keys are database column names, and its values
+// are database column values.
+type Row map[string]interface{}
+
+// TODO(mdlayher): try to make concrete types for row values.
+
+// Transact creates and executes a transaction on the specified database.
+// Each operation is applied in the order they appear in ops.
+func (c *Client) Transact(ctx context.Context, db string, ops []TransactOp) ([]Row, error) {
+	// Required because transact uses an unusual syntax for its arguments.
+	arg := transactArg{
+		Database: db,
+		Ops:      ops,
+	}
+
+	// TODO(mdlayher): deal with non-select ops too.
+	var out []struct {
+		Rows []Row `json:"rows"`
+	}
+
+	if err := c.rpc(ctx, "transact", &out, arg); err != nil {
+		return nil, err
+	}
+
+	// Flatten results from all selects into one slice of rows.
+	var rows []Row
+	for _, o := range out {
+		rows = append(rows, o.Rows...)
+	}
+
+	return rows, nil
+}
