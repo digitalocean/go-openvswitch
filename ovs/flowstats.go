@@ -34,9 +34,7 @@ type FlowStats struct {
 	ByteCount   uint64
 }
 
-// UnmarshalText unmarshals a FlowStats from textual form as output by
-// 'ovs-ofctl dump-aggregate <bridge> table=<tablename>,cookie=<cookie>/-1':
-//    NXST_AGGREGATE reply (xid=0x4): packet_count=642800 byte_count=141379644 flow_count=3
+// UnmarshalText unmarshals a FlowStats from textual form.
 func (f *FlowStats) UnmarshalText(b []byte) error {
 	// Make a copy per documentation for encoding.TextUnmarshaler.
 	s := string(b)
@@ -44,45 +42,55 @@ func (f *FlowStats) UnmarshalText(b []byte) error {
 	// Constants only needed within this method, to avoid polluting the
 	// package namespace with generic names
 	const (
-		nxstAggregate = "NXST_AGGREGATE"
-		packetCount   = "packet_count"
-		byteCount     = "byte_count"
+		packetCount = "packet_count"
+		byteCount   = "byte_count"
+		flowCount   = "flow_count"
 	)
 
-	ss := strings.Fields(s)
-	// Assumption here is that string s should have 6 fields of text separated by
-	// (5) spaces
-	if len(ss) != 6 {
+	// Find the index of packet count to find stats.
+	idx := strings.Index(s, packetCount)
+	if idx == -1 {
 		return ErrInvalidFlowStats
 	}
 
-	if ss[0] != nxstAggregate {
+	// Assume the last three fields are packets, bytes, and flows, in that order.
+	ss := strings.Fields(s[idx:])
+	fields := []string{
+		packetCount,
+		byteCount,
+		flowCount,
+	}
+
+	if len(ss) != len(fields) {
 		return ErrInvalidFlowStats
 	}
 
-	packetCountPair := strings.Split(ss[3], "=")
-	if len(packetCountPair) != 2 || packetCountPair[0] != packetCount {
-		return ErrInvalidFlowStats
+	var values []uint64
+	for i := range ss {
+		// Split key from its integer value.
+		kv := strings.Split(ss[i], "=")
+		if len(kv) != 2 {
+			return ErrInvalidFlowStats
+		}
+
+		// Verify keys appear in expected order.
+		if kv[0] != fields[i] {
+			return ErrInvalidFlowStats
+		}
+
+		n, err := strconv.ParseUint(kv[1], 10, 64)
+		if err != nil {
+			return err
+		}
+
+		values = append(values, n)
 	}
 
-	n, err := strconv.ParseUint(packetCountPair[1], 10, 64)
-	if err != nil {
-		return ErrInvalidFlowStats
+	*f = FlowStats{
+		PacketCount: values[0],
+		ByteCount:   values[1],
+		// Flow count unused.
 	}
-
-	f.PacketCount = n
-
-	byteCountPair := strings.Split(ss[4], "=")
-	if len(byteCountPair) != 2 || byteCountPair[0] != byteCount {
-		return ErrInvalidFlowStats
-	}
-
-	n, err = strconv.ParseUint(byteCountPair[1], 10, 64)
-	if err != nil {
-		return ErrInvalidFlowStats
-	}
-
-	f.ByteCount = n
 
 	return nil
 }
