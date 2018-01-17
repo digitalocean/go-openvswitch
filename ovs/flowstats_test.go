@@ -15,77 +15,90 @@
 package ovs
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestFlowStatsUnmarshalText(t *testing.T) {
 	var tests = []struct {
-		desc string
-		s    string
-		p    *FlowStats
-		err  error
+		desc  string
+		s     string
+		stats *FlowStats
+		ok    bool
 	}{
 		{
 			desc: "empty string",
-			err:  ErrInvalidFlowStats,
 		},
 		{
-			desc: "incorrect number of fields",
+			desc: "too few fields",
+			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=642800 byte_count=141379644",
+		},
+		{
+			desc: "too many fields",
 			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=642800 byte_count=141379644 flow_count=2, flow_count=3",
-			err:  ErrInvalidFlowStats,
 		},
 		{
-			desc: "first field is not NXST_AGGREGATE",
-			s:    "NXST_REPLY reply (xid=0x4): packet_count=642800 byte_count=141379644 flow_count=2",
-			err:  ErrInvalidFlowStats,
-		},
-		{
-			desc: "packet_count string is missing",
+			desc: "packet_count missing",
 			s:    "NXST_AGGREGATE reply (xid=0x4): frame_count=642800 byte_count=141379644 flow_count=2",
-			err:  ErrInvalidFlowStats,
 		},
 		{
-			desc: "byte_count string is missing",
+			desc: "byte_count missing",
 			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=642800 bits*8_count=141379644 flow_count=2",
-			err:  ErrInvalidFlowStats,
 		},
 		{
-			desc: "broken packet_count=value pair",
+			desc: "bad key=value",
+			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=1=foo byte_count=141379644 flow_count=2",
+		},
+		{
+			desc: "bad packet count",
 			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=toosmall byte_count=141379644 flow_count=2",
-			err:  ErrInvalidFlowStats,
 		},
 		{
-			desc: "broken byte_count=value pair",
+			desc: "bad byte count",
 			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=642800 byte_count=toolarge flow_count=2",
-			err:  ErrInvalidFlowStats,
+		},
+		{
+			desc: "bad flow count",
+			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=642800 byte_count=1 FLOW_count=2",
 		},
 		{
 			desc: "OK",
 			s:    "NXST_AGGREGATE reply (xid=0x4): packet_count=642800 byte_count=141379644 flow_count=2",
-			p: &FlowStats{
+			stats: &FlowStats{
 				PacketCount: 642800,
 				ByteCount:   141379644,
 			},
+			ok: true,
+		},
+		{
+			desc: "OK, OpenFlow 1.4",
+			s:    "OFPST_AGGREGATE reply (OF1.4) (xid=0x2): packet_count=1207 byte_count=101673 flow_count=1",
+			stats: &FlowStats{
+				PacketCount: 1207,
+				ByteCount:   101673,
+			},
+			ok: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			p := new(FlowStats)
-			err := p.UnmarshalText([]byte(tt.s))
+			stats := new(FlowStats)
+			err := stats.UnmarshalText([]byte(tt.s))
 
-			if want, got := errStr(tt.err), errStr(err); want != got {
-				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
-					want, got)
+			if err != nil && tt.ok {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if err == nil && !tt.ok {
+				t.Fatal("expected an error, but none occurred")
 			}
 			if err != nil {
 				return
 			}
 
-			if want, got := tt.p, p; !reflect.DeepEqual(want, got) {
-				t.Fatalf("unexpected PortStats:\n- want: %#v\n-  got: %#v",
-					want, got)
+			if diff := cmp.Diff(tt.stats, stats); diff != "" {
+				t.Fatalf("unexpected FlowStats (-want +got):\n%s", diff)
 			}
 		})
 	}
