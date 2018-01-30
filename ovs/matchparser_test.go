@@ -16,6 +16,7 @@ package ovs
 
 import (
 	"net"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -254,6 +255,34 @@ func Test_parseMatch(t *testing.T) {
 			s:       "ct_zone=1/1",
 			invalid: true,
 		},
+		{
+			s:       "tun_id=",
+			invalid: true,
+		},
+		{
+			s:       "tun_id=xyzzy",
+			invalid: true,
+		},
+		{
+			s:     "tun_id=0",
+			final: "tun_id=0x0",
+			m:     TunnelID(0),
+		},
+		{
+			s:     "tun_id=1",
+			final: "tun_id=0x1",
+			m:     TunnelID(1),
+		},
+		{
+			s:     "tun_id=0x000000000000000a",
+			final: "tun_id=0xa",
+			m:     TunnelID(10),
+		},
+		{
+			s:     "tun_id=0x000000000000000a/00000000000000002",
+			final: "tun_id=0xa/0x2",
+			m:     TunnelIDWithMask(10, 2),
+		},
 	}
 
 	for _, tt := range tests {
@@ -269,6 +298,11 @@ func Test_parseMatch(t *testing.T) {
 			}
 			if tt.invalid {
 				return
+			}
+
+			if !reflect.DeepEqual(tt.m, m) {
+				t.Fatalf("unexpected matcher:\n- want: %q\n- got: %q",
+					tt.m, m)
 			}
 
 			s, err := m.MarshalText()

@@ -70,9 +70,11 @@ func parseMatch(key string, value string) (Match, error) {
 		return parseVLANTCI(value)
 	case ctMark:
 		return parseCTMark(value)
+	case tunID:
+		return parseTunID(value)
 	}
 
-	return nil, fmt.Errorf("no action matched for %s=%s", key, value)
+	return nil, fmt.Errorf("no match parser found for %s=%s", key, value)
 }
 
 // parseClampInt calls strconv.Atoi on s, and then ensures that s is less than
@@ -267,6 +269,39 @@ func parseCTMark(value string) (Match, error) {
 	}
 }
 
+// parseTunID parses a tunID Match from value.
+func parseTunID(value string) (Match, error) {
+	var values []uint64
+	for _, s := range strings.Split(value, "/") {
+		if !strings.HasPrefix(s, hexPrefix) {
+			v, err := strconv.Atoi(s)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, uint64(v))
+			continue
+		}
+
+		v, err := parseHexUint64(s)
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, v)
+	}
+
+	switch len(values) {
+	case 1:
+		return TunnelID(values[0]), nil
+	case 2:
+		return TunnelIDWithMask(values[0], values[1]), nil
+	// Match had too many parts, e.g. "tun_id=10/10/10"
+	default:
+		return nil, fmt.Errorf("invalid tun_id match: %q", value)
+	}
+}
+
 // pareHexUint16 parses a uint16 value from a hexadecimal string.
 func parseHexUint16(value string) (uint16, error) {
 	b, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
@@ -291,4 +326,17 @@ func parseHexUint32(value string) (uint32, error) {
 	}
 
 	return binary.BigEndian.Uint32(b), nil
+}
+
+// pareHexUint64 parses a uint64 value from a hexadecimal string.
+func parseHexUint64(value string) (uint64, error) {
+	b, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
+	if err != nil {
+		return 0, err
+	}
+	if len(b) != 8 {
+		return 0, errors.New("hexadecimal value must be eight bytes in length")
+	}
+
+	return binary.BigEndian.Uint64(b), nil
 }
