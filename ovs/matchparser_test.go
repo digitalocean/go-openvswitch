@@ -274,6 +274,10 @@ func Test_parseMatch(t *testing.T) {
 			m:     TunnelID(1),
 		},
 		{
+			s: "tun_id=0x135d",
+			m: TunnelID(4957),
+		},
+		{
 			s:     "tun_id=0x000000000000000a",
 			final: "tun_id=0xa",
 			m:     TunnelID(10),

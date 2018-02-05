@@ -16,8 +16,6 @@ package ovs
 
 import (
 	"bytes"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -302,41 +300,25 @@ func parseTunID(value string) (Match, error) {
 	}
 }
 
-// pareHexUint16 parses a uint16 value from a hexadecimal string.
+// parseHexUint16 parses a uint16 value from a hexadecimal string.
 func parseHexUint16(value string) (uint16, error) {
-	b, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
+	val, err := strconv.ParseUint(strings.TrimPrefix(value, hexPrefix), 16, 32)
 	if err != nil {
 		return 0, err
 	}
-	if len(b) != 2 {
-		return 0, errors.New("hexadecimal value must be two bytes in length")
-	}
-
-	return binary.BigEndian.Uint16(b), nil
+	return uint16(val), nil
 }
 
-// pareHexUint32 parses a uint32 value from a hexadecimal string.
+// parseHexUint32 parses a uint32 value from a hexadecimal string.
 func parseHexUint32(value string) (uint32, error) {
-	b, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
+	val, err := strconv.ParseUint(strings.TrimPrefix(value, hexPrefix), 16, 32)
 	if err != nil {
 		return 0, err
 	}
-	if len(b) != 4 {
-		return 0, errors.New("hexadecimal value must be four bytes in length")
-	}
-
-	return binary.BigEndian.Uint32(b), nil
+	return uint32(val), nil
 }
 
-// pareHexUint64 parses a uint64 value from a hexadecimal string.
+// parseHexUint64 parses a uint64 value from a hexadecimal string.
 func parseHexUint64(value string) (uint64, error) {
-	b, err := hex.DecodeString(strings.TrimPrefix(value, hexPrefix))
-	if err != nil {
-		return 0, err
-	}
-	if len(b) != 8 {
-		return 0, errors.New("hexadecimal value must be eight bytes in length")
-	}
-
-	return binary.BigEndian.Uint64(b), nil
+	return strconv.ParseUint(strings.TrimPrefix(value, hexPrefix), 16, 64)
 }
