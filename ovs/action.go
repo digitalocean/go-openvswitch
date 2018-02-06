@@ -404,8 +404,8 @@ type resubmitPortAction struct {
 
 // MarshalText implements Action.
 func (a *resubmitPortAction) MarshalText() ([]byte, error) {
-	// Largest valid port ID is 0xfeff per openflow spec.
-	if a.port < 0 || a.port > 0xfeff {
+	// Largest valid port ID is 0xfffffeff per openflow spec.
+	if a.port < 0 || a.port > 0xfffffeff {
 		return nil, errResubmitPortInvalid
 	}
 
