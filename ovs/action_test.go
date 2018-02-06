@@ -397,13 +397,13 @@ func TestActionResubmitPort(t *testing.T) {
 			action: "resubmit:1",
 		},
 		{
-			desc:   "max port (0xfeff)",
-			port:   0xfeff,
-			action: "resubmit:65279",
+			desc:   "max port (0xfffffeff)",
+			port:   0xfffffeff,
+			action: "resubmit:4294967039",
 		},
 		{
-			desc: "max port+1 (0xfeff)",
-			port: 0xff00,
+			desc: "max port+1 (0xfffffeff)",
+			port: 0xffffff00,
 			err:  errResubmitPortInvalid,
 		},
 	}
