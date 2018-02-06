@@ -145,8 +145,12 @@ func (s *stack) pop() {
 
 var (
 	// resubmitRe is the regex used to match the resubmit action
-	// with one or more of its parameters.
-	resubmitRe = regexp.MustCompile(`resubmit(?::(\d+)|\((\d*),(\d*)\))`)
+	// with port and table specified
+	resubmitRe = regexp.MustCompile(`resubmit\((\d*),(\d*)\)`)
+
+	// resubmitPortRe is the regex used to match the resubmit action
+	// when only a port is specified
+	resubmitPortRe = regexp.MustCompile(`resubmit:(\d+)`)
 
 	// ctRe is the regex used to match the ct action with its
 	// parameter list.
@@ -305,8 +309,8 @@ func parseAction(s string) (Action, error) {
 		}
 	}
 
-	// ActionResubmit, with one or both of port number and table number
-	if ss := resubmitRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 4 {
+	// ActionResubmit, with both port number and table number
+	if ss := resubmitRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 3 {
 		var (
 			port  int
 			table int
@@ -316,7 +320,6 @@ func parseAction(s string) (Action, error) {
 
 		// Results are:
 		//  - full string
-		//  - single port
 		//  - port in parenthesis
 		//  - table in parenthesis
 
@@ -325,16 +328,8 @@ func parseAction(s string) (Action, error) {
 			if err != nil {
 				return nil, err
 			}
-			return Resubmit(port, 0), nil
 		}
-
 		if s := ss[0][2]; s != "" {
-			port, err = strconv.Atoi(s)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if s := ss[0][3]; s != "" {
 			table, err = strconv.Atoi(s)
 			if err != nil {
 				return nil, err
@@ -342,6 +337,16 @@ func parseAction(s string) (Action, error) {
 		}
 
 		return Resubmit(port, table), nil
+	}
+
+	// ActionResubmitPort, with only a port number
+	if ss := resubmitPortRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 2 {
+		port, err := strconv.Atoi(ss[0][1])
+		if err != nil {
+			return nil, err
+		}
+
+		return ResubmitPort(port), nil
 	}
 
 	if ss := loadRe.FindAllStringSubmatch(s, 2); len(ss) > 0 && len(ss[0]) == 3 {

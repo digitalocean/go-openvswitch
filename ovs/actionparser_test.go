@@ -239,12 +239,11 @@ func Test_parseAction(t *testing.T) {
 		},
 		{
 			s: "resubmit:4",
-			a: Resubmit(4, 0),
+			a: ResubmitPort(4),
 		},
 		{
-			s:     "resubmit(1,)",
-			final: "resubmit:1",
-			a:     Resubmit(1, 0),
+			s: "resubmit(1,)",
+			a: Resubmit(1, 0),
 		},
 		{
 			s: "resubmit(,2)",

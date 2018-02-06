@@ -41,6 +41,10 @@ var (
 	// errLoadSetFieldZero is returned when Load or SetField is called with value and/or
 	// field set to empty strings.
 	errLoadSetFieldZero = errors.New("value and/or field for action load or set_field are empty")
+
+	// errResubmitPortInvalid is returned when ResubmitPort is given a port number that is
+	// invalid per the openflow spec.
+	errResubmitPortInvalid = errors.New("resubmit port must be between 0 and 65279 inclusive")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
@@ -385,6 +389,36 @@ type resubmitAction struct {
 	table int
 }
 
+// ResubmitPort resubmits a packet into the current table with its context modified
+// to look like it originated from the specified openflow port ID.
+func ResubmitPort(port int) Action {
+	return &resubmitPortAction{
+		port: port,
+	}
+}
+
+// A resubmitPortAction is an Action which is used by ConneectionTracking.
+type resubmitPortAction struct {
+	port int
+}
+
+// MarshalText implements Action.
+func (a *resubmitPortAction) MarshalText() ([]byte, error) {
+	// Largest valid port ID is 0xfeff per openflow spec.
+	if a.port < 0 || a.port > 0xfeff {
+		return nil, errResubmitPortInvalid
+	}
+
+	p := strconv.Itoa(a.port)
+
+	return bprintf(patResubmitPort, p), nil
+}
+
+// GoString implements Action.
+func (a *resubmitPortAction) GoString() string {
+	return fmt.Sprintf("ovs.ResubmitPort(%d)", a.port)
+}
+
 // MarshalText implements Action.
 func (a *resubmitAction) MarshalText() ([]byte, error) {
 	if a.port == 0 && a.table == 0 {
@@ -399,10 +433,9 @@ func (a *resubmitAction) MarshalText() ([]byte, error) {
 	t := ""
 	if a.table != 0 {
 		t = strconv.Itoa(a.table)
-		return bprintf(patResubmitPortTable, p, t), nil
 	}
 
-	return bprintf(patResubmitPort, p), nil
+	return bprintf(patResubmitPortTable, p, t), nil
 }
 
 // GoString implements Action.
