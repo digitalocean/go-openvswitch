@@ -344,7 +344,7 @@ func TestActionResubmit(t *testing.T) {
 		{
 			desc:   "table zero",
 			port:   1,
-			action: "resubmit:1",
+			action: "resubmit(1,)",
 		},
 		{
 			desc:   "both port and table non-zero",
@@ -357,6 +357,60 @@ func TestActionResubmit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			action, err := Resubmit(tt.port, tt.table).MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestActionResubmitPort(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		port   int
+		action string
+		err    error
+	}{
+		{
+			desc: "invalid port",
+			port: -1,
+			err:  errResubmitPortInvalid,
+		},
+		{
+			desc:   "port zero",
+			port:   0,
+			action: "resubmit:0",
+		},
+		{
+			desc:   "port 1",
+			port:   1,
+			action: "resubmit:1",
+		},
+		{
+			desc:   "max port (0xfeff)",
+			port:   0xfeff,
+			action: "resubmit:65279",
+		},
+		{
+			desc: "max port+1 (0xfeff)",
+			port: 0xff00,
+			err:  errResubmitPortInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := ResubmitPort(tt.port).MarshalText()
 
 			if want, got := tt.err, err; want != got {
 				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
