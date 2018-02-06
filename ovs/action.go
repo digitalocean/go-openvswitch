@@ -149,7 +149,8 @@ const (
 	patModTransportSourcePort      = "mod_tp_src:%d"
 	patModVLANVID                  = "mod_vlan_vid:%d"
 	patOutput                      = "output:%d"
-	patResubmit                    = "resubmit(%s,%s)"
+	patResubmitPort                = "resubmit:%s"
+	patResubmitPortTable           = "resubmit(%s,%s)"
 )
 
 // ConnectionTracking sends a packet through the host's connection tracker.
@@ -398,9 +399,10 @@ func (a *resubmitAction) MarshalText() ([]byte, error) {
 	t := ""
 	if a.table != 0 {
 		t = strconv.Itoa(a.table)
+		return bprintf(patResubmitPortTable, p, t), nil
 	}
 
-	return bprintf(patResubmit, p, t), nil
+	return bprintf(patResubmitPort, p), nil
 }
 
 // GoString implements Action.

@@ -344,7 +344,7 @@ func TestActionResubmit(t *testing.T) {
 		{
 			desc:   "table zero",
 			port:   1,
-			action: "resubmit(1,)",
+			action: "resubmit:1",
 		},
 		{
 			desc:   "both port and table non-zero",
