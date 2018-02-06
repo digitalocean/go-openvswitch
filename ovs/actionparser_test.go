@@ -93,6 +93,7 @@ func Test_parseAction(t *testing.T) {
 	var tests = []struct {
 		desc    string
 		s       string
+		final   string
 		a       Action
 		invalid bool
 	}{
@@ -237,8 +238,13 @@ func Test_parseAction(t *testing.T) {
 			invalid: true,
 		},
 		{
-			s: "resubmit(1,)",
-			a: Resubmit(1, 0),
+			s: "resubmit:4",
+			a: Resubmit(4, 0),
+		},
+		{
+			s:     "resubmit(1,)",
+			final: "resubmit:1",
+			a:     Resubmit(1, 0),
 		},
 		{
 			s: "resubmit(,2)",
@@ -300,6 +306,10 @@ func Test_parseAction(t *testing.T) {
 			switch want {
 			case "LOCAL", "NORMAL":
 				want = strings.ToLower(want)
+			}
+
+			if tt.final != "" {
+				want = tt.final
 			}
 
 			if got := string(s); want != got {
