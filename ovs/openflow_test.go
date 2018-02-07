@@ -944,6 +944,85 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name:  "test multiple flows mid dump NXST_FLOW",
+			input: "br0",
+			flows: `NXST_FLOW reply (xid=0x4): flags=[more]
+ cookie=0x0, duration=9215.748s, table=0, n_packets=6, n_bytes=480, idle_age=9206, priority=820,in_port=LOCAL actions=mod_vlan_vid:10,output:1
+ cookie=0x0, duration=1121991.329s, table=50, n_packets=0, n_bytes=0, priority=110,ip,dl_src=f1:f2:f3:f4:f5:f6 actions=ct(table=51)
+NXST_FLOW reply (xid=0x4):
+ cookie=0x0, duration=83229.846s, table=51, n_packets=3, n_bytes=234, priority=101,ct_state=+new+rel+trk,ip actions=ct(commit,table=65)
+ cookie=0x0, duration=1381314.983s, table=65, n_packets=0, n_bytes=0, priority=4040,ip,dl_dst=f1:f2:f3:f4:f5:f6,nw_src=169.254.169.254,nw_dst=169.254.0.0/16 actions=output:19
+  cookie=0x0, duration=13.265s, table=12, n_packets=0, n_bytes=0, idle_age=13, priority=4321,tcp,tcp_flags=+syn-psh+ack actions=resubmit(,13)
+`,
+			want: []*Flow{
+				{
+					Priority: 820,
+					InPort:   PortLOCAL,
+					Matches:  []Match{},
+					Table:    0,
+					Actions: []Action{
+						ModVLANVID(10),
+						Output(1),
+					},
+				},
+				{
+					Priority: 110,
+					Protocol: ProtocolIPv4,
+					Matches: []Match{
+						DataLinkSource("f1:f2:f3:f4:f5:f6"),
+					},
+					Table: 50,
+					Actions: []Action{
+						ConnectionTracking("table=51"),
+					},
+				},
+				{
+					Priority: 101,
+					Protocol: ProtocolIPv4,
+					Matches: []Match{
+						ConnectionTrackingState(
+							SetState(CTStateNew),
+							SetState(CTStateRelated),
+							SetState(CTStateTracked),
+						),
+					},
+					Table: 51,
+					Actions: []Action{
+						ConnectionTracking("commit,table=65"),
+					},
+				},
+				{
+					Priority: 4040,
+					Protocol: ProtocolIPv4,
+					Matches: []Match{
+						DataLinkDestination("f1:f2:f3:f4:f5:f6"),
+						NetworkSource("169.254.169.254"),
+						NetworkDestination("169.254.0.0/16"),
+					},
+					Table: 65,
+					Actions: []Action{
+						Output(19),
+					},
+				},
+				{
+					Priority: 4321,
+					Protocol: ProtocolTCPv4,
+					Matches: []Match{
+						TCPFlags(
+							SetTCPFlag(TCPFlagSYN),
+							UnsetTCPFlag(TCPFlagPSH),
+							SetTCPFlag(TCPFlagACK),
+						),
+					},
+					Table: 12,
+					Actions: []Action{
+						Resubmit(0, 13),
+					},
+				},
+			},
+			err: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

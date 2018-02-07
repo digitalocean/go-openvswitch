@@ -266,6 +266,11 @@ func (o *OpenFlowService) DumpFlows(bridge string) ([]*Flow, error) {
 
 	var flows []*Flow
 	err = parseEachLine(out, dumpFlowsPrefix, func(b []byte) error {
+		// Do not attempt to parse NXST_FLOW messages.
+		if bytes.HasPrefix(b, dumpFlowsPrefix) {
+			return nil
+		}
+
 		f := new(Flow)
 		if err := f.UnmarshalText(b); err != nil {
 			return err
