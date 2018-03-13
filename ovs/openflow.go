@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 )
 
 var (
@@ -37,6 +38,9 @@ var (
 type OpenFlowService struct {
 	// Wrapped Client for ExecFunc and debugging.
 	c *Client
+
+	// Pool for in-memory flow bundle buffers.
+	flowBufferPool sync.Pool
 }
 
 // AddFlow adds a Flow to a bridge attached to Open vSwitch.
@@ -152,7 +156,9 @@ func (tx *FlowTransaction) Discard(err error) error {
 func (o *OpenFlowService) AddFlowBundle(bridge string, fn func(tx *FlowTransaction) error) error {
 	// Flows will be added to and read from an in-memory buffer.  The buffer's
 	// contents are piped to 'ovs-ofctl' using stdin.
-	buf := bytes.NewBuffer(nil)
+	buf := o.flowBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer o.flowBufferPool.Put(buf)
 
 	tx := &FlowTransaction{}
 	if err := fn(tx); err != nil {
