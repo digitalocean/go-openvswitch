@@ -39,6 +39,7 @@ const (
 	arpSPA   = "arp_spa"
 	arpTHA   = "arp_tha"
 	arpTPA   = "arp_tpa"
+	conjID   = "conj_id"
 	ctMark   = "ct_mark"
 	ctState  = "ct_state"
 	ctZone   = "ct_zone"
@@ -245,6 +246,29 @@ func (m *networkMatch) GoString() string {
 	}
 
 	return fmt.Sprintf("ovs.NetworkDestination(%q)", m.ip)
+}
+
+// ConjunctionID matches flows that have matched all dimension of a conjunction
+// inside of the openflow table.
+func ConjunctionID(id uint32) Match {
+	return &conjunctionIDMatch{
+		id: id,
+	}
+}
+
+// A conjunctionIDMatch is a Match returned by ConjunctionID
+type conjunctionIDMatch struct {
+	id uint32
+}
+
+// MarshalText implements Match.
+func (m *conjunctionIDMatch) MarshalText() ([]byte, error) {
+	return bprintf("conj_id=%v", m.id), nil
+}
+
+// GoString implements Match.
+func (m *conjunctionIDMatch) GoString() string {
+	return fmt.Sprintf("ovs.ConjunctionID(%v)", m.id)
 }
 
 // NetworkProtocol matches packets with the specified IP or IPv6 protocol

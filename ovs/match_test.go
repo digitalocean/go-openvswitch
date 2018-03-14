@@ -486,6 +486,39 @@ func TestMatchNetworkProtocol(t *testing.T) {
 	}
 }
 
+func TestMatchConjunctionID(t *testing.T) {
+	var tests = []struct {
+		desc string
+		num  uint32
+		out  string
+	}{
+		{
+			desc: "ID 1",
+			num:  1,
+			out:  "conj_id=1",
+		},
+		{
+			desc: "ID 11111",
+			num:  11111,
+			out:  "conj_id=11111",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := ConjunctionID(tt.num).MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMatchConnectionTrackingState(t *testing.T) {
 	var tests = []struct {
 		desc string
@@ -997,6 +1030,10 @@ func TestMatchGoString(t *testing.T) {
 		{
 			m: TunnelIDWithMask(0xa, 0x0f),
 			s: `ovs.TunnelIDWithMask(0xa, 0xf)`,
+		},
+		{
+			m: ConjunctionID(123),
+			s: `ovs.ConjunctionID(123)`,
 		},
 	}
 
