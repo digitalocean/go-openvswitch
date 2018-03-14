@@ -297,6 +297,18 @@ func parseAction(s string) (Action, error) {
 		}
 	}
 
+	// ActionConjunction, with it's id, dimension number, and dimension size
+	if strings.HasPrefix(s, patConjunction[:len(patConjunction)-10]) {
+		var id, dimensionNumber, dimensionSize int
+		n, err := fmt.Sscanf(s, patConjunction, &id, &dimensionNumber, &dimensionSize)
+		if err != nil {
+			return nil, err
+		}
+		if n > 0 {
+			return Conjunction(id, dimensionNumber, dimensionSize), nil
+		}
+	}
+
 	// ActionOutput, with its port number
 	if strings.HasPrefix(s, patOutput[:len(patOutput)-2]) {
 		var port int
