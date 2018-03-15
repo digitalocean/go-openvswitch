@@ -33,6 +33,8 @@ func parseMatch(key string, value string) (Match, error) {
 		return parseIntMatch(key, value, math.MaxUint8)
 	case tpSRC, tpDST, ctZone:
 		return parseIntMatch(key, value, math.MaxUint16)
+	case conjID:
+		return parseIntMatch(key, value, math.MaxUint32)
 	case arpSPA:
 		return ARPSourceProtocolAddress(value), nil
 	case arpTPA:
@@ -108,6 +110,8 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 		return TransportDestinationPort(uint16(t)), nil
 	case ctZone:
 		return ConnectionTrackingZone(uint16(t)), nil
+	case conjID:
+		return ConjunctionID(uint32(t)), nil
 	}
 
 	return nil, fmt.Errorf("no action matched for %s=%s", key, value)

@@ -45,6 +45,10 @@ var (
 	// errResubmitPortInvalid is returned when ResubmitPort is given a port number that is
 	// invalid per the openflow spec.
 	errResubmitPortInvalid = errors.New("resubmit port must be between 0 and 65279 inclusive")
+
+	// errTooManyDimensions is returned when the specified dimension exceeds the total dimension
+	// in a conjunction action.
+	errDimensionTooLarge = errors.New("dimension number exceeds total number of dimensions")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
@@ -145,6 +149,7 @@ func StripVLAN() Action {
 // printf-style patterns for marshaling and unmarshaling actions.
 const (
 	patConnectionTracking          = "ct(%s)"
+	patConjunction                 = "conjunction(%d, %d/%d)"
 	patModDataLinkDestination      = "mod_dl_dst:%s"
 	patModDataLinkSource           = "mod_dl_src:%s"
 	patModNetworkDestination       = "mod_nw_dst:%s"
@@ -370,6 +375,37 @@ func (a *outputAction) MarshalText() ([]byte, error) {
 // GoString implements Action.
 func (a *outputAction) GoString() string {
 	return fmt.Sprintf("ovs.Output(%d)", a.port)
+}
+
+// Conjunction associates a flow with a certain conjunction ID to match on more than
+// one dimension across multiple set matches.
+func Conjunction(id int, dimensionNumber int, dimensionSize int) Action {
+	return &conjunctionAction{
+		id:              id,
+		dimensionNumber: dimensionNumber,
+		dimensionSize:   dimensionSize,
+	}
+}
+
+// A conjuctionAction is an Action which is used by Conjunction.
+type conjunctionAction struct {
+	id              int
+	dimensionNumber int
+	dimensionSize   int
+}
+
+// MarshalText implements Action.
+func (a *conjunctionAction) MarshalText() ([]byte, error) {
+	if a.dimensionNumber > a.dimensionSize {
+		return nil, errDimensionTooLarge
+	}
+
+	return bprintf(patConjunction, a.id, a.dimensionNumber, a.dimensionSize), nil
+}
+
+// GoString implements Action.
+func (a *conjunctionAction) GoString() string {
+	return fmt.Sprintf("ovs.Conjunction(%d, %d, %d)", a.id, a.dimensionNumber, a.dimensionSize)
 }
 
 // Resubmit resubmits a packet for further processing by matching

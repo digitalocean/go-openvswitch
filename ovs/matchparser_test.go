@@ -287,6 +287,14 @@ func Test_parseMatch(t *testing.T) {
 			final: "tun_id=0xa/0x2",
 			m:     TunnelIDWithMask(10, 2),
 		},
+		{
+			s: "conj_id=123",
+			m: ConjunctionID(123),
+		},
+		{
+			s:       "conj_id=nope",
+			invalid: true,
+		},
 	}
 
 	for _, tt := range tests {

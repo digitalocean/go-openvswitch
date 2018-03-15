@@ -531,6 +531,50 @@ func TestSetTunnel(t *testing.T) {
 	}
 }
 
+func TestConjunction(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "set conjunction 1/2",
+			a:      Conjunction(123, 1, 2),
+			action: "conjunction(123, 1/2)",
+		},
+		{
+			desc:   "set conjunction 2/2",
+			a:      Conjunction(123, 2, 2),
+			action: "conjunction(123, 2/2)",
+		},
+		{
+			desc: "set conjunction 3/2",
+			a:    Conjunction(123, 3, 2),
+			err:  errDimensionTooLarge,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestActionGoString(t *testing.T) {
 	tests := []struct {
 		a Action
@@ -599,6 +643,10 @@ func TestActionGoString(t *testing.T) {
 		{
 			a: SetTunnel(10),
 			s: `ovs.SetTunnel(0xa)`,
+		},
+		{
+			a: Conjunction(123, 1, 2),
+			s: `ovs.Conjunction(123, 1, 2)`,
 		},
 	}
 
