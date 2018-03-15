@@ -149,7 +149,7 @@ func StripVLAN() Action {
 // printf-style patterns for marshaling and unmarshaling actions.
 const (
 	patConnectionTracking          = "ct(%s)"
-	patConjunction                 = "conjunction(%d, %d/%d)"
+	patConjunction                 = "conjunction(%d,%d/%d)"
 	patModDataLinkDestination      = "mod_dl_dst:%s"
 	patModDataLinkSource           = "mod_dl_src:%s"
 	patModNetworkDestination       = "mod_nw_dst:%s"

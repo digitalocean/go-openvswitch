@@ -282,19 +282,19 @@ func Test_parseAction(t *testing.T) {
 			a: SetField("192.168.1.1", "arp_spa"),
 		},
 		{
-			s: "conjunction(123, 1/2)",
+			s: "conjunction(123,1/2)",
 			a: Conjunction(123, 1, 2),
 		},
 		{
-			s: "conjunction(123, 2/2)",
+			s: "conjunction(123,2/2)",
 			a: Conjunction(123, 2, 2),
 		},
 		{
-			s:       "conjunction(123, 3/2)",
+			s:       "conjunction(123,3/2)",
 			invalid: true,
 		},
 		{
-			s:       "conjunxxxxx(123, 3/2)",
+			s:       "conjunxxxxx(123,3/2)",
 			invalid: true,
 		},
 	}

@@ -541,12 +541,12 @@ func TestConjunction(t *testing.T) {
 		{
 			desc:   "set conjunction 1/2",
 			a:      Conjunction(123, 1, 2),
-			action: "conjunction(123, 1/2)",
+			action: "conjunction(123,1/2)",
 		},
 		{
 			desc:   "set conjunction 2/2",
 			a:      Conjunction(123, 2, 2),
-			action: "conjunction(123, 2/2)",
+			action: "conjunction(123,2/2)",
 		},
 		{
 			desc: "set conjunction 3/2",
