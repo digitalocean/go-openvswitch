@@ -263,6 +263,21 @@ func TestFlowMarshalText(t *testing.T) {
 			},
 			s: "priority=4020,tcp,tcp_flags=+syn+ack,nw_dst=192.0.2.1,tp_dst=22,table=45,idle_timeout=0,actions=resubmit(,1)",
 		},
+		{
+			desc: "Conjunction flow",
+			f: &Flow{
+				Priority: 400,
+				Protocol: ProtocolIPv4,
+				Matches: []Match{
+					NetworkDestination("192.0.2.1"),
+				},
+				Table: 45,
+				Actions: []Action{
+					Conjunction(123, 1, 2),
+				},
+			},
+			s: "priority=400,ip,nw_dst=192.0.2.1,table=45,idle_timeout=0,actions=conjunction(123,1/2)",
+		},
 	}
 
 	for _, tt := range tests {
