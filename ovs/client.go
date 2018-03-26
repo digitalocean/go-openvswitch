@@ -308,6 +308,14 @@ func Protocols(versions []string) OptionFunc {
 	}
 }
 
+// SetSSLParam allows additional arbitary parameters to be appended in the end
+func SetSSLParam(pkey string, cert string, cacert string) OptionFunc {
+	return func(c *Client) {
+		c.ofctlFlags = append(c.ofctlFlags, fmt.Sprintf("--private-key=%s", pkey),
+			fmt.Sprintf("--certificate=%s", cert), fmt.Sprintf("--ca-cert=%s", cacert))
+	}
+}
+
 // Sudo specifies that "sudo" should be prefixed to all OVS commands.
 func Sudo() OptionFunc {
 	return func(c *Client) {
