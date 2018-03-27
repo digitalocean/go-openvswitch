@@ -308,7 +308,8 @@ func Protocols(versions []string) OptionFunc {
 	}
 }
 
-// SetSSLParam allows additional arbitary parameters to be appended in the end
+// SetSSLParam configures SSL authentication using a private key, certificate,
+// and CA certificate for use with ovs-ofctl.
 func SetSSLParam(pkey string, cert string, cacert string) OptionFunc {
 	return func(c *Client) {
 		c.ofctlFlags = append(c.ofctlFlags, fmt.Sprintf("--private-key=%s", pkey),
