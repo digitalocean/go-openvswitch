@@ -874,7 +874,9 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
  cookie=0x0, duration=1121991.329s, table=50, n_packets=0, n_bytes=0, priority=110,ip,dl_src=f1:f2:f3:f4:f5:f6 actions=ct(table=51)
  cookie=0x0, duration=83229.846s, table=51, n_packets=3, n_bytes=234, priority=101,ct_state=+new+rel+trk,ip actions=ct(commit,table=65)
  cookie=0x0, duration=1381314.983s, table=65, n_packets=0, n_bytes=0, priority=4040,ip,dl_dst=f1:f2:f3:f4:f5:f6,nw_src=169.254.169.254,nw_dst=169.254.0.0/16 actions=output:19
-  cookie=0x0, duration=13.265s, table=12, n_packets=0, n_bytes=0, idle_age=13, priority=4321,tcp,tcp_flags=+syn-psh+ack actions=resubmit(,13)
+ cookie=0x0, duration=13.265s, table=12, n_packets=0, n_bytes=0, idle_age=13, priority=4321,tcp,tcp_flags=+syn-psh+ack actions=resubmit(,13)
+ cookie=0x200020000, duration=92017.318s, table=0, n_packets=0, n_bytes=0, idle_age=65534, hard_age=65534, priority=1100,arp,tun_id=0x2,in_port=31,arp_tpa=10.36.160.72 actions=resubmit:4
+ cookie=0x135700020000, duration=14.126s, table=0, n_packets=0, n_bytes=0, idle_age=14, priority=1100,ip,tun_id=0x1357,in_port=31,nw_dst=10.36.160.140 actions=resubmit:4
 `,
 			want: []*Flow{
 				{
@@ -939,6 +941,38 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 					Table: 12,
 					Actions: []Action{
 						Resubmit(0, 13),
+					},
+				},
+				//cookie=0x200020000, duration=92017.318s, table=0, n_packets=0, n_bytes=0, idle_age=65534, hard_age=65534, priority=1100,arp,tun_id=0x2,in_port=31,arp_tpa=10.36.160.72 actions=resubmit:4
+				// cookie=0x135700020000, duration=14.126s, table=0, n_packets=0, n_bytes=0, idle_age=14, priority=1100,ip,tun_id=0x1357,in_port=31,nw_dst=10.36.160.140 actions=resubmit:4
+				{
+					Priority: 1100,
+					Protocol: ProtocolARP,
+					InPort:   31,
+					Matches: []Match{
+						TunnelID(0x2),
+						ARPTargetProtocolAddress("10.36.160.72"),
+					},
+					Table:  0,
+					Cookie: 0x200020000,
+					Actions: []Action{
+						ResubmitPort(4),
+					},
+				},
+				//cookie=0x200020000, duration=92017.318s, table=0, n_packets=0, n_bytes=0, idle_age=65534, hard_age=65534, priority=1100,arp,tun_id=0x2,in_port=31,arp_tpa=10.36.160.72 actions=resubmit:4
+				// cookie=0x135700020000, duration=14.126s, table=0, n_packets=0, n_bytes=0, idle_age=14, priority=1100,ip,tun_id=0x1357,in_port=31,nw_dst=10.36.160.140 actions=resubmit:4
+				{
+					Priority: 1100,
+					Protocol: ProtocolIPv4,
+					InPort:   31,
+					Matches: []Match{
+						TunnelID(0x1357),
+						NetworkDestination("10.36.160.140"),
+					},
+					Table:  0,
+					Cookie: 0x135700020000,
+					Actions: []Action{
+						ResubmitPort(4),
 					},
 				},
 			},
@@ -1049,8 +1083,8 @@ NXST_FLOW reply (xid=0x4):
 			}
 			for i := range tt.want {
 				if !flowsEqual(tt.want[i], got[i]) {
-					t.Errorf("got  %v", got[i])
-					t.Errorf("want %v", tt.want[i])
+					t.Errorf("got %#v", got[i])
+					t.Errorf("want %#v", tt.want[i])
 					t.Fatal("expected return value to be equal")
 				}
 			}
