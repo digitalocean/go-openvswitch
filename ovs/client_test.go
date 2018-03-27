@@ -29,24 +29,27 @@ func TestNew(t *testing.T) {
 		{
 			desc: "no options",
 			c: &Client{
-				flags: make([]string, 0),
-				debug: false,
+				flags:      make([]string, 0),
+				ofctlFlags: make([]string, 0),
+				debug:      false,
 			},
 		},
 		{
 			desc:    "Timeout(2)",
 			options: []OptionFunc{Timeout(2)},
 			c: &Client{
-				flags: []string{"--timeout=2"},
-				debug: false,
+				flags:      []string{"--timeout=2"},
+				ofctlFlags: make([]string, 0),
+				debug:      false,
 			},
 		},
 		{
 			desc:    "Debug(true)",
 			options: []OptionFunc{Debug(true)},
 			c: &Client{
-				flags: make([]string, 0),
-				debug: true,
+				flags:      make([]string, 0),
+				ofctlFlags: make([]string, 0),
+				debug:      true,
 			},
 		},
 		{
@@ -72,8 +75,9 @@ func TestNew(t *testing.T) {
 				Debug(true),
 			},
 			c: &Client{
-				flags: []string{"--timeout=5"},
-				debug: true,
+				flags:      []string{"--timeout=5"},
+				ofctlFlags: make([]string, 0),
+				debug:      true,
 			},
 		},
 		{
@@ -82,8 +86,19 @@ func TestNew(t *testing.T) {
 				Sudo(),
 			},
 			c: &Client{
-				flags: make([]string, 0),
-				sudo:  true,
+				flags:      make([]string, 0),
+				ofctlFlags: make([]string, 0),
+				sudo:       true,
+			},
+		},
+		{
+			desc: "SetSSLParam(pkey, cert, cacert)",
+			options: []OptionFunc{
+				SetSSLParam("privkey.pem", "cert.pem", "cacert.pem"),
+			},
+			c: &Client{
+				flags:      make([]string, 0),
+				ofctlFlags: []string{"--private-key=privkey.pem", "--certificate=cert.pem", "--ca-cert=cacert.pem"},
 			},
 		},
 	}
@@ -99,6 +114,15 @@ func TestNew(t *testing.T) {
 
 			if want, got := tt.c.debug, c.debug; !reflect.DeepEqual(want, got) {
 				t.Fatalf("unexpected Client.debug:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if want, got := tt.c.sudo, c.sudo; !reflect.DeepEqual(want, got) {
+				t.Fatalf("unexpected Client.sudo:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+
+			if want, got := tt.c.ofctlFlags, c.ofctlFlags; !reflect.DeepEqual(want, got) {
+				t.Fatalf("unexpected Client.ofctlFlags:\n- want: %v\n-  got: %v",
 					want, got)
 			}
 		})

@@ -119,6 +119,13 @@ func (v *VSwitchService) SetFailMode(bridge string, mode FailMode) error {
 	return err
 }
 
+// SetController sets the controller for this bridge so that ovs-ofctl
+// can use this address to communicate.
+func (v *VSwitchService) SetController(bridge string, address string) error {
+	_, err := v.exec("set-controller", bridge, address)
+	return err
+}
+
 // exec executes an ExecFunc using 'ovs-vsctl'.
 func (v *VSwitchService) exec(args ...string) ([]byte, error) {
 	return v.c.exec("ovs-vsctl", args...)
