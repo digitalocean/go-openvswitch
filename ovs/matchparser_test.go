@@ -316,6 +316,11 @@ func Test_parseMatch(t *testing.T) {
 			m:    TransportDestinationMaskedPort(0xea60, 0xffe0),
 		},
 		{
+			desc:    "tp_dst 0xea60/0xffe0/0xdddd",
+			s:       "tp_dst=0xea60/0xffe0/0xdddd",
+			invalid: true,
+		},
+		{
 			desc:    "tp_src out of range 65536/0xffe0",
 			s:       "tp_src=65536/0xffe0",
 			invalid: true,
@@ -334,6 +339,11 @@ func Test_parseMatch(t *testing.T) {
 			desc: "tp_src 0xea60/0xffe0",
 			s:    "tp_src=0xea60/0xffe0",
 			m:    TransportSourceMaskedPort(0xea60, 0xffe0),
+		},
+		{
+			desc:    "tp_src 0xea60/0xffe0/0xdddd",
+			s:       "tp_src=0xea60/0xffe0/0xdddd",
+			invalid: true,
 		},
 	}
 

@@ -119,26 +119,21 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 // with a maximum possible value of max.
 func parsePort(key string, value string, max int) (Match, error) {
 
+	var values []uint64
 	//Split the string
-	ss := strings.SplitN(value, "/", 2)
+	ss := strings.Split(value, "/")
 
 	//If input is just port
 	switch len(ss) {
 	case 1:
-		port, err := parseClampInt(value, max)
+		val, err := parseClampInt(value, max)
 		if err != nil {
 			return nil, err
 		}
-		switch key {
-		case tpSRC:
-			return TransportSourcePort(uint16(port)), nil
-		case tpDST:
-			return TransportDestinationPort(uint16(port)), nil
-		}
-		return nil, fmt.Errorf("no action matched for %s=%s", key, value)
+		values = append(values, uint64(val))
+		values = append(values, 0)
 		// If input is port/mask
 	case 2:
-		var values []uint64
 		for _, s := range ss {
 			val, err := parseHexUint64(s)
 			if err != nil {
@@ -151,14 +146,15 @@ func parsePort(key string, value string, max int) (Match, error) {
 
 			values = append(values, val)
 		}
+	default:
+		return nil, fmt.Errorf("invalid value, no action matched for %s=%s", key, value)
+	}
 
-		switch key {
-		case tpSRC:
-			return TransportSourceMaskedPort(uint16(values[0]), uint16(values[1])), nil
-		case tpDST:
-			return TransportDestinationMaskedPort(uint16(values[0]), uint16(values[1])), nil
-		}
-		return nil, fmt.Errorf("no action matched for %s=%s", key, value)
+	switch key {
+	case tpSRC:
+		return TransportSourceMaskedPort(uint16(values[0]), uint16(values[1])), nil
+	case tpDST:
+		return TransportDestinationMaskedPort(uint16(values[0]), uint16(values[1])), nil
 	}
 	// Return error if input is invalid
 	return nil, fmt.Errorf("no action matched for %s=%s", key, value)
