@@ -31,8 +31,10 @@ func parseMatch(key string, value string) (Match, error) {
 		return parseMACMatch(key, value)
 	case icmpType, nwProto:
 		return parseIntMatch(key, value, math.MaxUint8)
-	case tpSRC, tpDST, ctZone:
+	case ctZone:
 		return parseIntMatch(key, value, math.MaxUint16)
+	case tpSRC, tpDST:
+		return parsePort(key, value, math.MaxUint16)
 	case conjID:
 		return parseIntMatch(key, value, math.MaxUint32)
 	case arpSPA:
@@ -104,16 +106,61 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 		return ICMPType(uint8(t)), nil
 	case nwProto:
 		return NetworkProtocol(uint8(t)), nil
-	case tpSRC:
-		return TransportSourcePort(uint16(t)), nil
-	case tpDST:
-		return TransportDestinationPort(uint16(t)), nil
 	case ctZone:
 		return ConnectionTrackingZone(uint16(t)), nil
 	case conjID:
 		return ConjunctionID(uint32(t)), nil
 	}
 
+	return nil, fmt.Errorf("no action matched for %s=%s", key, value)
+}
+
+// parsePort parses a port or port/mask Match value from the input key and value,
+// with a maximum possible value of max.
+func parsePort(key string, value string, max int) (Match, error) {
+
+	//Split the string
+	ss := strings.SplitN(value, "/", 2)
+
+	//If input is just port
+	switch len(ss) {
+	case 1:
+		port, err := parseClampInt(value, max)
+		if err != nil {
+			return nil, err
+		}
+		switch key {
+		case tpSRC:
+			return TransportSourcePort(uint16(port)), nil
+		case tpDST:
+			return TransportDestinationPort(uint16(port)), nil
+		}
+		return nil, fmt.Errorf("no action matched for %s=%s", key, value)
+		// If input is port/mask
+	case 2:
+		var values []uint64
+		for _, s := range ss {
+			val, err := parseHexUint64(s)
+			if err != nil {
+				return nil, err
+			}
+			// Return error if val > 65536 (uint16)
+			if val > uint64(max) {
+				return nil, fmt.Errorf("integer %d too large; %d > %d", val, val, max)
+			}
+
+			values = append(values, val)
+		}
+
+		switch key {
+		case tpSRC:
+			return TransportSourceMaskedPort(uint16(values[0]), uint16(values[1])), nil
+		case tpDST:
+			return TransportDestinationMaskedPort(uint16(values[0]), uint16(values[1])), nil
+		}
+		return nil, fmt.Errorf("no action matched for %s=%s", key, value)
+	}
+	// Return error if input is invalid
 	return nil, fmt.Errorf("no action matched for %s=%s", key, value)
 }
 

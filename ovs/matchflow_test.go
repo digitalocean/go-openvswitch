@@ -203,6 +203,19 @@ func TestMatchFlowMarshalText(t *testing.T) {
 			},
 			s: "tcp,tcp_flags=+syn+ack,nw_dst=192.0.2.1,tp_dst=22,table=45",
 		},
+		{
+			desc: "TP port range flow",
+			f: &MatchFlow{
+				Protocol: ProtocolUDPv4,
+				InPort:   33,
+				Matches: []Match{
+					NetworkDestination("192.0.2.1"),
+					TransportDestinationMaskedPort(0xea60, 0xffe0),
+				},
+				Table: 55,
+			},
+			s: "udp,in_port=33,nw_dst=192.0.2.1,tp_dst=0xea60/0xffe0,table=55",
+		},
 	}
 
 	for _, tt := range tests {
