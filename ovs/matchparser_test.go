@@ -295,6 +295,56 @@ func Test_parseMatch(t *testing.T) {
 			s:       "conj_id=nope",
 			invalid: true,
 		},
+		{
+			desc:    "tp_dst out of range 65536/0xffe0",
+			s:       "tp_dst=65536/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "tp_dst out of range 0x10000/0xffe0",
+			s:       "tp_dst=0x10000/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "tp_dst out of range 0xea60/0x10000",
+			s:       "tp_dst=0xea60/0x10000",
+			invalid: true,
+		},
+		{
+			desc: "tp_dst 0xea60/0xffe0",
+			s:    "tp_dst=0xea60/0xffe0",
+			m:    TransportDestinationMaskedPort(0xea60, 0xffe0),
+		},
+		{
+			desc:    "tp_dst 0xea60/0xffe0/0xdddd",
+			s:       "tp_dst=0xea60/0xffe0/0xdddd",
+			invalid: true,
+		},
+		{
+			desc:    "tp_src out of range 65536/0xffe0",
+			s:       "tp_src=65536/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "tp_src out of range 0x10000/0xffe0",
+			s:       "tp_src=0x10000/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "tp_src out of range 0xea60/0x10000",
+			s:       "tp_src=0xea60/0x10000",
+			invalid: true,
+		},
+		{
+			desc: "tp_src 0xea60/0xffe0",
+			s:    "tp_src=0xea60/0xffe0",
+			m:    TransportSourceMaskedPort(0xea60, 0xffe0),
+		},
+		{
+			desc:    "tp_src 0xea60/0xffe0/0xdddd",
+			s:       "tp_src=0xea60/0xffe0/0xdddd",
+			invalid: true,
+		},
 	}
 
 	for _, tt := range tests {

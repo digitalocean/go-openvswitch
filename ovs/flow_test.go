@@ -278,6 +278,19 @@ func TestFlowMarshalText(t *testing.T) {
 			},
 			s: "priority=400,ip,nw_dst=192.0.2.1,table=45,idle_timeout=0,actions=conjunction(123,1/2)",
 		},
+		{
+			desc: "TP Port Range",
+			f: &Flow{
+				InPort: 72,
+				Matches: []Match{
+					TransportSourceMaskedPort(0xea60, 0xffe0),
+					TransportDestinationMaskedPort(60000, 0xffe0),
+				},
+				Table:   55,
+				Actions: []Action{Drop()},
+			},
+			s: "priority=0,in_port=72,tp_src=0xea60/0xffe0,tp_dst=0xea60/0xffe0,table=55,idle_timeout=0,actions=drop",
+		},
 	}
 
 	for _, tt := range tests {
@@ -735,6 +748,22 @@ func TestFlowUnmarshalText(t *testing.T) {
 				Actions: []Action{
 					Output(19),
 				},
+			},
+		},
+		{
+			desc: "TP Port Range",
+			s:    "priority=3000,tcp,in_port=72,tp_src=0xea60/0xffe0,tp_dst=0xea60/0xffe0,table=0,idle_timeout=0,actions=drop",
+			f: &Flow{
+				Priority: 3000,
+				Protocol: ProtocolTCPv4,
+				InPort:   72,
+				Matches: []Match{
+					TransportSourceMaskedPort(60000, 0xffe0),
+					TransportDestinationMaskedPort(0xea60, 0xffe0),
+				},
+				Table:       0,
+				IdleTimeout: 0,
+				Actions:     []Action{Drop()},
 			},
 		},
 	}
