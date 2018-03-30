@@ -126,6 +126,15 @@ func (v *VSwitchService) SetController(bridge string, address string) error {
 	return err
 }
 
+// GetController gets the controller address for this bridge.
+func (v *VSwitchService) GetController(bridge string) (string, error) {
+	address, err := v.exec("get-controller", bridge)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(address)), err
+}
+
 // exec executes an ExecFunc using 'ovs-vsctl'.
 func (v *VSwitchService) exec(args ...string) ([]byte, error) {
 	return v.c.exec("ovs-vsctl", args...)
