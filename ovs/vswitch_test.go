@@ -167,6 +167,36 @@ func TestClientVSwitchSetControllerOK(t *testing.T) {
 	}
 }
 
+func TestClientVSwitchGetControllerOK(t *testing.T) {
+	bridge := "br0"
+	address := "pssl:6653:127.0.0.1"
+
+	// Apply Timeout option to verify arguments
+	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+		// Verify correct command and arguments passed, including option flags
+		if want, got := "ovs-vsctl", cmd; want != got {
+			t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		wantArgs := []string{"--timeout=1", "get-controller", string(bridge)}
+		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		return []byte(address), nil
+	})
+
+	gotAddress, err := c.VSwitch.GetController(bridge)
+	if err != nil {
+		t.Fatalf("unexpected error for Client.VSwitch.GetController: %v", err)
+	}
+	if gotAddress != address {
+		t.Fatalf("Controller address missmatch\n- got: %v\n- want: %v", gotAddress, address)
+	}
+}
+
 func TestClientVSwitchListPorts(t *testing.T) {
 	tests := []struct {
 		name  string
