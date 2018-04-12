@@ -22,6 +22,7 @@ import (
 	"log"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // A Client is a client type which enables programmatic control of Open
@@ -229,7 +230,13 @@ func New(options ...OptionFunc) *Client {
 
 	ofs := &OpenFlowService{
 		c: c,
+		flowBufferPool: sync.Pool{
+			New: func() interface{} {
+				return new(bytes.Buffer)
+			},
+		},
 	}
+
 	c.OpenFlow = ofs
 
 	return c
