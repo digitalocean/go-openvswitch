@@ -317,6 +317,14 @@ func SetSSLParam(pkey string, cert string, cacert string) OptionFunc {
 	}
 }
 
+// SetTCPParam configures the OVSDB connection using a TCP format ip:port
+// for use with all ovs commands
+func SetTCPParam(ip string, port string) OptionFunc {
+	return func(c *Client) {
+		c.flags= append(c.ofctlFlags, fmt.Sprintf("--db=tcp:%s:%s", ip, port))
+	}
+}
+
 // Sudo specifies that "sudo" should be prefixed to all OVS commands.
 func Sudo() OptionFunc {
 	return func(c *Client) {
