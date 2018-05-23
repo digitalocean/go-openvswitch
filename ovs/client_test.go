@@ -102,9 +102,9 @@ func TestNew(t *testing.T) {
 			},
 		},
 		{
-			desc: "SetTCPParam(ip, port)",
+			desc: "SetTCPParam(addr)",
 			options: []OptionFunc{
-				SetTCPParam("127.0.0.1", "6640"),
+				SetTCPParam("127.0.0.1:6640"),
 			},
 			c: &Client{
 				flags: []string{"--db=tcp:127.0.0.1:6640"},

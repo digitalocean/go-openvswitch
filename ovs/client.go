@@ -318,10 +318,10 @@ func SetSSLParam(pkey string, cert string, cacert string) OptionFunc {
 }
 
 // SetTCPParam configures the OVSDB connection using a TCP format ip:port
-// for use with all ovs commands
-func SetTCPParam(ip string, port string) OptionFunc {
+// for use with all ovs-vsctl commands.
+func SetTCPParam(addr string) OptionFunc {
 	return func(c *Client) {
-		c.flags= append(c.ofctlFlags, fmt.Sprintf("--db=tcp:%s:%s", ip, port))
+		c.flags= append(c.flags, fmt.Sprintf("--db=tcp:%s", addr))
 	}
 }
 
