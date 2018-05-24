@@ -321,7 +321,7 @@ func SetSSLParam(pkey string, cert string, cacert string) OptionFunc {
 // for use with all ovs-vsctl commands.
 func SetTCPParam(addr string) OptionFunc {
 	return func(c *Client) {
-		c.flags= append(c.flags, fmt.Sprintf("--db=tcp:%s", addr))
+		c.flags = append(c.flags, fmt.Sprintf("--db=tcp:%s", addr))
 	}
 }
 

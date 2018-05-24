@@ -107,11 +107,10 @@ func TestNew(t *testing.T) {
 				SetTCPParam("127.0.0.1:6640"),
 			},
 			c: &Client{
-				flags: []string{"--db=tcp:127.0.0.1:6640"},
+				flags:      []string{"--db=tcp:127.0.0.1:6640"},
 				ofctlFlags: make([]string, 0),
 			},
 		},
-
 	}
 
 	for _, tt := range tests {
