@@ -101,6 +101,17 @@ func TestNew(t *testing.T) {
 				ofctlFlags: []string{"--private-key=privkey.pem", "--certificate=cert.pem", "--ca-cert=cacert.pem"},
 			},
 		},
+		{
+			desc: "SetTCPParam(addr)",
+			options: []OptionFunc{
+				SetTCPParam("127.0.0.1:6640"),
+			},
+			c: &Client{
+				flags: []string{"--db=tcp:127.0.0.1:6640"},
+				ofctlFlags: make([]string, 0),
+			},
+		},
+
 	}
 
 	for _, tt := range tests {
