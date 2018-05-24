@@ -5,6 +5,7 @@ os:
   - linux
 sudo: required
 before_install:
+  - sudo apt update
   - sudo apt install openvswitch-switch
   - sudo ovs-vsctl add-br ovsbr0
   - go get github.com/golang/lint/golint
