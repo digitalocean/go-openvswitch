@@ -88,6 +88,9 @@ func (v *VSwitchService) ListBridges() ([]string, error) {
 		return nil, err
 	}
 
+	if string(output) == "" {
+		return nil, nil
+	}
 	bridges := strings.Split(strings.TrimSpace(string(output)), "\n")
 	return bridges, err
 }
