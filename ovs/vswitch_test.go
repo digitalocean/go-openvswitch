@@ -261,6 +261,14 @@ func TestClientVSwitchListBridges(t *testing.T) {
 		c    *Client
 	}{
 		{
+			name: "test no bridge",
+			want: nil,
+			err:  nil,
+			c: testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+				return []byte(""), nil
+			}),
+		},
+		{
 			name: "test single bridge",
 			want: []string{"br0"},
 			err:  nil,
