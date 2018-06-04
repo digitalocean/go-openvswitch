@@ -77,11 +77,13 @@ func (v *VSwitchService) ListPorts(bridge string) ([]string, error) {
 		return nil, err
 	}
 
-	if string(output) == "" {
+	// Do no ports exist?
+	if len(output) == 0 {
 		return nil, nil
 	}
+
 	ports := strings.Split(strings.TrimSpace(string(output)), "\n")
-	return ports, err
+	return ports, nil
 }
 
 // ListBridges lists the bridges in Open vSwitch.
@@ -91,11 +93,13 @@ func (v *VSwitchService) ListBridges() ([]string, error) {
 		return nil, err
 	}
 
-	if string(output) == "" {
+	// Do no bridges exist?
+	if len(output) == 0 {
 		return nil, nil
 	}
+
 	bridges := strings.Split(strings.TrimSpace(string(output)), "\n")
-	return bridges, err
+	return bridges, nil
 }
 
 // PortToBridge attempts to determine which bridge a port is attached to.
@@ -116,7 +120,8 @@ func (v *VSwitchService) GetFailMode(bridge string) (FailMode, error) {
 	if err != nil {
 		return "", err
 	}
-	return FailMode(out), err
+
+	return FailMode(out), nil
 }
 
 // SetFailMode sets the specified FailMode for the specified bridge.
@@ -138,7 +143,8 @@ func (v *VSwitchService) GetController(bridge string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(address)), err
+
+	return strings.TrimSpace(string(address)), nil
 }
 
 // exec executes an ExecFunc using 'ovs-vsctl'.
@@ -162,12 +168,15 @@ func (v *VSwitchGetService) Bridge(bridge string) (BridgeOptions, error) {
 	if err != nil {
 		return BridgeOptions{}, err
 	}
-	protocols := []string{}
-	err = json.Unmarshal(out, &protocols)
-	if err != nil {
+
+	var protocols []string
+	if err := json.Unmarshal(out, &protocols); err != nil {
 		return BridgeOptions{}, err
 	}
-	return BridgeOptions{Protocols: protocols}, nil
+
+	return BridgeOptions{
+		Protocols: protocols,
+	}, nil
 }
 
 // A VSwitchSetService is used in a VSwitchService to execute 'ovs-vsctl set'
