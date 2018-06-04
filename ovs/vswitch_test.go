@@ -206,6 +206,15 @@ func TestClientVSwitchListPorts(t *testing.T) {
 		c     *Client
 	}{
 		{
+			name:  "test br0 bonded with no interface",
+			input: "br0",
+			want:  nil,
+			err:   nil,
+			c: testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+				return []byte(""), nil
+			}),
+		},
+		{
 			name:  "test br0 bonded",
 			input: "br0",
 			want:  []string{"bond0"},
@@ -260,6 +269,14 @@ func TestClientVSwitchListBridges(t *testing.T) {
 		err  error
 		c    *Client
 	}{
+		{
+			name: "test no bridge",
+			want: nil,
+			err:  nil,
+			c: testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+				return []byte(""), nil
+			}),
+		},
 		{
 			name: "test single bridge",
 			want: []string{"br0"},
