@@ -17,6 +17,7 @@ package ovs
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -179,6 +180,47 @@ func (v *VSwitchGetService) Bridge(bridge string) (BridgeOptions, error) {
 	}, nil
 }
 
+// Port gets configuration for a port and returns the values through
+// a PortOptions struct.
+func (v *VSwitchGetService) Port(port string) (PortOptions, error) {
+	// We only support the tag, vlan_mode, trunk option at this point.
+	args := []string{"--format=json", "get", "port", port, "tag", "vlan_mode", "trunk"}
+	out, err := v.v.exec(args...)
+	if err != nil {
+		return PortOptions{}, err
+	}
+
+	// If the option is not exist, OVS will return "[]\n"
+	options := strings.Split(strings.TrimSpace(string(out)), "\n")
+
+	var tag *int
+	if options[0] != "[]" {
+		tagNum, err := strconv.Atoi(options[0])
+		if err != nil {
+			return PortOptions{}, err
+		}
+		tag = &tagNum
+	}
+
+	var vlanMode *string
+	if options[1] != "[]" {
+		vlanMode = &options[1]
+	}
+
+	var trunk []int
+	if options[2] != "[]" {
+		if err := json.Unmarshal([]byte(options[2]), &trunk); err != nil {
+			return PortOptions{}, err
+		}
+	}
+
+	return PortOptions{
+		Tag:      tag,
+		VLANMode: vlanMode,
+		Trunk:    trunk,
+	}, nil
+}
+
 // A VSwitchSetService is used in a VSwitchService to execute 'ovs-vsctl set'
 // subcommands.
 type VSwitchSetService struct {
@@ -211,6 +253,49 @@ func (o BridgeOptions) slice() []string {
 
 	if len(o.Protocols) > 0 {
 		s = append(s, fmt.Sprintf("protocols=%s", strings.Join(o.Protocols, ",")))
+	}
+
+	return s
+}
+
+// Port sets configuration for a port using the values from a PortOptions
+// struct.
+func (v *VSwitchSetService) Port(port string, options PortOptions) error {
+	// Prepend command line arguments before expanding options slice
+	// and appending it
+	args := []string{"set", "port", port}
+	args = append(args, options.slice()...)
+
+	_, err := v.v.exec(args...)
+	return err
+}
+
+// An PortOptions struct enables configuration of a port.
+type PortOptions struct {
+	Tag      *int
+	VLANMode *string
+	Trunk    []int
+}
+
+// slice creates a string slice containing any non-zero option values from the
+// struct in the format expected by Open vSwitch.
+func (o PortOptions) slice() []string {
+	var s []string
+
+	if o.Tag != nil {
+		s = append(s, fmt.Sprintf("tag=%s,", strconv.Itoa(*o.Tag)))
+	}
+
+	if o.VLANMode != nil {
+		s = append(s, fmt.Sprintf("vlan_mode=%s", *o.VLANMode))
+	}
+
+	if len(o.Trunk) > 0 {
+		var strTrunk string
+		for _, trunk := range o.Trunk {
+			strTrunk += fmt.Sprintf("%s,", strconv.Itoa(trunk))
+		}
+		s = append(s, fmt.Sprintf("trunk=%s", strTrunk))
 	}
 
 	return s
