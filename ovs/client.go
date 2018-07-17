@@ -278,6 +278,14 @@ func Pipe(fn PipeFunc) OptionFunc {
 	}
 }
 
+// Strict deactivates wildcards for matching purposes when shelling to
+// 'ovs-ofctl'.
+func Strict() OptionFunc {
+	return func(c *Client) {
+		c.ofctlFlags = append(c.ofctlFlags, "--strict")
+	}
+}
+
 const (
 	// FlowFormatNXMTableID is a flow format which allows Nicira Extended match
 	// with the ability to place a flow in a specific table.
