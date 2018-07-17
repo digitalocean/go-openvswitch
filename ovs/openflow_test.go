@@ -143,9 +143,15 @@ func TestClientOpenFlowAddFlowBundleOK(t *testing.T) {
 	}
 
 	// Flows for deletion
-	matchFlows := []*MatchFlow{{
-		Cookie: 0xdeadbeef,
-	}}
+	matchFlows := []*MatchFlow{
+		{
+			Cookie: 0xdeadbeef,
+		},
+		{
+			Strict:   true,
+			Priority: 0,
+		},
+	}
 
 	pipe := Pipe(func(stdin io.Reader, cmd string, args ...string) ([]byte, error) {
 		if want, got := "ovs-ofctl", cmd; want != got {
@@ -1079,7 +1085,7 @@ func mustVerifyFlowBundle(t *testing.T, stdin io.Reader, flows []*Flow, matchFlo
 			}
 
 			gotFlows = append(gotFlows, flow)
-		case dirDelete:
+		case dirDelete, dirDeleteStrict:
 			gotMatchFlows = append(gotMatchFlows, string(bb[1]))
 		default:
 			t.Fatalf("unexpected directive in flow bundle: %q", keyword)
