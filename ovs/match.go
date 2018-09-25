@@ -434,7 +434,7 @@ func (m *neighborDiscoveryLinkLayerMatch) GoString() string {
 	return fmt.Sprintf("ovs.NeighborDiscoveryTargetLinkLayer(%s)", syntax)
 }
 
-//  ARPOperation matches packets with the specified ARP operation matching oper.
+// ARPOperation matches packets with the specified ARP operation matching oper.
 func ARPOperation(oper uint16) Match {
 	return &arpOperationMatch{
 		oper: oper,
