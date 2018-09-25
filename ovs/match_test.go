@@ -1035,12 +1035,49 @@ func TestMatchGoString(t *testing.T) {
 			m: ConjunctionID(123),
 			s: `ovs.ConjunctionID(123)`,
 		},
+		{
+			m: ARPOperation(2),
+			s: `ovs.ARPOperation(2)`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.s, func(t *testing.T) {
 			if want, got := tt.s, tt.m.GoString(); want != got {
 				t.Fatalf("unexpected Match Go syntax:\n- want: %v\n-  got: %v", want, got)
+			}
+		})
+	}
+}
+
+func TestMatchARPOperation(t *testing.T) {
+	var tests = []struct {
+		desc string
+		oper uint16
+		out  string
+	}{
+		{
+			desc: "request",
+			oper: 1,
+			out:  "arp_op=1",
+		},
+		{
+			desc: "response",
+			oper: 2,
+			out:  "arp_op=2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := ARPOperation(tt.oper).MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
 			}
 		})
 	}

@@ -35,6 +35,7 @@ const (
 
 // Constants of full Match names.
 const (
+	arpOp    = "arp_op"
 	arpSHA   = "arp_sha"
 	arpSPA   = "arp_spa"
 	arpTHA   = "arp_tha"
@@ -431,6 +432,30 @@ func (m *neighborDiscoveryLinkLayerMatch) GoString() string {
 	}
 
 	return fmt.Sprintf("ovs.NeighborDiscoveryTargetLinkLayer(%s)", syntax)
+}
+
+//  ARPOperation matches packets with the specified ARP operation matching oper.
+func ARPOperation(oper uint16) Match {
+	return &arpOperationMatch{
+		oper: oper,
+	}
+}
+
+var _ Match = &arpOperationMatch{}
+
+// An arpOperationMatch is a Match returned by ARPOperation.
+type arpOperationMatch struct {
+	oper uint16
+}
+
+// MarshalText implements Match.
+func (m *arpOperationMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%d", arpOp, m.oper), nil
+}
+
+// GoString implements Match.
+func (m *arpOperationMatch) GoString() string {
+	return fmt.Sprintf("ovs.ARPOperation(%d)", m.oper)
 }
 
 // ARPSourceHardwareAddress matches packets with an ARP source hardware address
