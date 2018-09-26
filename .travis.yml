@@ -9,6 +9,7 @@ before_install:
   - sudo apt install openvswitch-switch
   - sudo ovs-vsctl add-br ovsbr0
   - go get github.com/golang/lint/golint
+  - go get github.com/google/go-cmp/cmp
   - go get honnef.co/go/tools/cmd/staticcheck
   - go get -d ./...
 script:
