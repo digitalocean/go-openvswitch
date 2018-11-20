@@ -59,7 +59,8 @@ type Select struct {
 	// Zero or more Conds for conditional select.
 	Where []Cond
 
-	// TODO(mdlayher): specify columns.
+	// Optional columns for result.
+	Columns []string
 }
 
 // MarshalJSON implements json.Marshaler.
@@ -71,13 +72,15 @@ func (s Select) MarshalJSON() ([]byte, error) {
 	}
 
 	sel := struct {
-		Op    string `json:"op"`
-		Table string `json:"table"`
-		Where []Cond `json:"where"`
+		Op      string   `json:"op"`
+		Table   string   `json:"table"`
+		Where   []Cond   `json:"where"`
+		Columns []string `json:"columns"`
 	}{
-		Op:    "select",
-		Table: s.Table,
-		Where: where,
+		Op:      "select",
+		Table:   s.Table,
+		Where:   where,
+		Columns: s.Columns,
 	}
 
 	return json.Marshal(sel)
