@@ -182,6 +182,50 @@ func TestMatchDataLinkVLAN(t *testing.T) {
 	}
 }
 
+func TestMatchDataLinkVLANPCP(t *testing.T) {
+	var tests = []struct {
+		desc    string
+		vlanPCP int
+		out     string
+		invalid bool
+	}{
+		{
+			desc:    "too small VLAN PCP",
+			vlanPCP: -1,
+			invalid: true,
+		},
+		{
+			desc:    "too large VLAN PCP",
+			vlanPCP: 8,
+			invalid: true,
+		},
+		{
+			desc:    "minimum VLAN PCP",
+			vlanPCP: 0,
+			out:     "dl_vlan_pcp=0",
+		},
+		{
+			desc:    "maximum VLAN PCP",
+			vlanPCP: 7,
+			out:     "dl_vlan_pcp=7",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := DataLinkVLANPCP(tt.vlanPCP).MarshalText()
+			if err != nil && !tt.invalid {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMatchIPv4AddressOrCIDR(t *testing.T) {
 	var tests = []struct {
 		desc    string
@@ -797,6 +841,127 @@ func TestMatchVLANTCI(t *testing.T) {
 	}
 }
 
+func TestMatchVLANTCI1(t *testing.T) {
+	var tests = []struct {
+		desc string
+		m    Match
+		out  string
+	}{
+		{
+			desc: "TCI1 10, no mask",
+			m:    VLANTCI1(0, 0),
+			out:  "vlan_tci1=0x0000",
+		},
+		{
+			desc: "TCI1 0x1000, mask 0x1000 (any VLAN)",
+			m:    VLANTCI1(0x1000, 0x1000),
+			out:  "vlan_tci1=0x1000/0x1000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := tt.m.MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestMatchIPv6Label(t *testing.T) {
+	var tests = []struct {
+		desc    string
+		m       Match
+		out     string
+		invalid bool
+	}{
+		{
+			desc: "Label 10, no mask",
+			m:    IPv6Label(10, 0),
+			out:  "ipv6_label=0x0000a",
+		},
+		{
+			desc: "Label 0x1000, mask 0xfffff",
+			m:    IPv6Label(0x1000, 0xfffff),
+			out:  "ipv6_label=0x01000/0xfffff",
+		},
+		{
+			desc:    "Label uses more than the lower 20 bits",
+			m:       IPv6Label(0x100000, 0x000fffff),
+			invalid: true,
+		},
+		{
+			desc:    "Mask uses more than the lower 20 bits",
+			m:       IPv6Label(0x010000, 0x00ffffff),
+			invalid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := tt.m.MarshalText()
+			if (err != nil) != tt.invalid {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestMatchARPOP(t *testing.T) {
+	var tests = []struct {
+		desc    string
+		m       Match
+		out     string
+		invalid bool
+	}{
+		{
+			desc: "Arp op 1",
+			m:    ArpOp(1),
+			out:  "arp_op=1",
+		},
+		{
+			desc: "Arp op 2",
+			m:    ArpOp(2),
+			out:  "arp_op=2",
+		},
+		{
+			desc:    "Arp op 0",
+			m:       ArpOp(0),
+			invalid: true,
+		},
+		{
+			desc:    "Arp op 5",
+			m:       ArpOp(5),
+			invalid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := tt.m.MarshalText()
+			if (err != nil) != tt.invalid {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMatchConnectionTrackingMark(t *testing.T) {
 	var tests = []struct {
 		desc string
@@ -1008,6 +1173,14 @@ func TestMatchGoString(t *testing.T) {
 		{
 			m: VLANTCI(0x1000, 0x1000),
 			s: `ovs.VLANTCI(0x1000, 0x1000)`,
+		},
+		{
+			m: VLANTCI1(10, 0),
+			s: `ovs.VLANTCI1(0x000a, 0x0000)`,
+		},
+		{
+			m: VLANTCI1(0x1000, 0x1000),
+			s: `ovs.VLANTCI1(0x1000, 0x1000)`,
 		},
 		{
 			m: ConnectionTrackingState(
