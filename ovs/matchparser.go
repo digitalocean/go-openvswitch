@@ -29,6 +29,8 @@ func parseMatch(key string, value string) (Match, error) {
 	switch key {
 	case arpSHA, arpTHA, ndSLL, ndTLL:
 		return parseMACMatch(key, value)
+	case arpOp:
+		return parseArpOp(value)
 	case icmpType, nwProto:
 		return parseIntMatch(key, value, math.MaxUint8)
 	case ctZone:
@@ -56,18 +58,32 @@ func parseMatch(key string, value string) (Match, error) {
 		}
 
 		return DataLinkType(etherType), nil
+	case dlVLANPCP:
+		return parseDataLinkVLANPCP(value)
 	case dlVLAN:
 		return parseDataLinkVLAN(value)
 	case ndTarget:
 		return NeighborDiscoveryTarget(value), nil
+	case nwECN:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case nwTTL:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case nwTOS:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case inPort:
+		return parseIntMatch(key, value, math.MaxInt32)
 	case ipv6SRC:
 		return IPv6Source(value), nil
 	case ipv6DST:
 		return IPv6Destination(value), nil
+	case ipv6Label:
+		return parseIPv6Label(value)
 	case nwSRC:
 		return NetworkSource(value), nil
 	case nwDST:
 		return NetworkDestination(value), nil
+	case vlanTCI1:
+		return parseVLANTCI1(value)
 	case vlanTCI:
 		return parseVLANTCI(value)
 	case ctMark:
@@ -104,6 +120,14 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 	switch key {
 	case icmpType:
 		return ICMPType(uint8(t)), nil
+	case inPort:
+		return InPortMatch(int(t)), nil
+	case nwECN:
+		return NetworkECN(int(t)), nil
+	case nwTTL:
+		return NetworkTTL(int(t)), nil
+	case nwTOS:
+		return NetworkTOS(int(t)), nil
 	case nwProto:
 		return NetworkProtocol(uint8(t)), nil
 	case ctZone:
@@ -206,6 +230,11 @@ func parseCTState(value string) (Match, error) {
 // parseTCPFlags parses a series of TCP flags into a Match.  Open vSwitch's representation
 // of These TCP flags are outlined in the ovs-field(7) man page,
 func parseTCPFlags(value string) (Match, error) {
+	// tcp_flag can also be decimal number
+	if _, err := strconv.Atoi(value); err == nil {
+		return TCPFlags(value), nil
+	}
+
 	if len(value)%4 != 0 {
 		return nil, errors.New("tcp_flags length must be divisible by 4")
 	}
@@ -248,6 +277,25 @@ func parseDataLinkVLAN(value string) (Match, error) {
 	return DataLinkVLAN(int(vlan)), nil
 }
 
+// parseDataLinkVLANPCP parses a DataLinkVLANPCP Match from value.
+func parseDataLinkVLANPCP(value string) (Match, error) {
+	if !strings.HasPrefix(value, hexPrefix) {
+		pcp, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, err
+		}
+
+		return DataLinkVLANPCP(pcp), nil
+	}
+
+	pcp, err := parseHexUint16(value)
+	if err != nil {
+		return nil, err
+	}
+
+	return DataLinkVLANPCP(int(pcp)), nil
+}
+
 // parseVLANTCI parses a VLANTCI Match from value.
 func parseVLANTCI(value string) (Match, error) {
 	var values []uint16
@@ -279,6 +327,89 @@ func parseVLANTCI(value string) (Match, error) {
 	default:
 		return nil, fmt.Errorf("invalid vlan_tci match: %q", value)
 	}
+}
+
+// parseVLANTCI1 parses a VLANTCI1 Match from value.
+func parseVLANTCI1(value string) (Match, error) {
+	var values []uint16
+	for _, s := range strings.Split(value, "/") {
+		if !strings.HasPrefix(s, hexPrefix) {
+			v, err := strconv.Atoi(s)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, uint16(v))
+			continue
+		}
+
+		v, err := parseHexUint16(s)
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, v)
+	}
+
+	switch len(values) {
+	case 1:
+		return VLANTCI1(values[0], 0), nil
+	case 2:
+		return VLANTCI1(values[0], values[1]), nil
+	// Match had too many parts, e.g. "vlan_tci1=10/10/10"
+	default:
+		return nil, fmt.Errorf("invalid vlan_tci1 match: %q", value)
+	}
+}
+
+// parseIPv6Label parses a IPv6Label Match from value.
+func parseIPv6Label(value string) (Match, error) {
+	var values []uint32
+	for _, s := range strings.Split(value, "/") {
+		if !strings.HasPrefix(s, hexPrefix) {
+			v, err := strconv.Atoi(s)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, uint32(v))
+			continue
+		}
+
+		v, err := parseHexUint32(s)
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, v)
+	}
+
+	switch len(values) {
+	case 1:
+		return IPv6Label(values[0], 0), nil
+	case 2:
+		return IPv6Label(values[0], values[1]), nil
+	// Match had too many parts, e.g. "ipv6_label=10/10/10"
+	default:
+		return nil, fmt.Errorf("invalid ipv6_label match: %q", value)
+	}
+}
+
+// parseArpOp parses a ArpOp Match from value.
+func parseArpOp(value string) (Match, error) {
+	if !strings.HasPrefix(value, hexPrefix) {
+		parsed, err := strconv.ParseUint(value, 10, 16)
+		if err != nil {
+			return nil, err
+		}
+		return ArpOp(uint16(parsed)), nil
+	}
+
+	v, err := parseHexUint16(value)
+	if err != nil {
+		return nil, err
+	}
+	return ArpOp(v), nil
 }
 
 // parseCTMark parses a CTMark Match from value.

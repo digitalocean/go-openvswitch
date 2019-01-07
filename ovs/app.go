@@ -1,0 +1,58 @@
+// Copyright 2017 DigitalOcean.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package ovs
+
+import (
+	"strings"
+)
+
+// AppService runs commands that are available from ovs-appctl
+type AppService struct {
+	c *Client
+}
+
+// ProtoTrace runs ovs-appctl ofproto/trace on the given bridge and match flow
+// and returns a *ProtoTrace. Also returns err if there is any error parsing the
+// output from ovs-appctl ofproto/trace.
+func (a *AppService) ProtoTrace(bridge string, matches []Match) (*ProtoTrace, error) {
+	matchFlows := []string{}
+	for _, match := range matches {
+		matchFlow, err := match.MarshalText()
+		if err != nil {
+			return nil, err
+		}
+
+		matchFlows = append(matchFlows, string(matchFlow))
+	}
+
+	matchArg := strings.Join(matchFlows, ",")
+	out, err := a.exec("ofproto/trace", bridge, matchArg)
+	if err != nil {
+		return nil, err
+	}
+
+	pt := &ProtoTrace{}
+	err = pt.UnmarshalText(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return pt, nil
+}
+
+// exec executes 'ovs-appctl' + args passed in
+func (a *AppService) exec(args ...string) ([]byte, error) {
+	return a.c.exec("ovs-appctl", args...)
+}

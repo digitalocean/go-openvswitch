@@ -104,6 +104,22 @@ func Test_parseMatch(t *testing.T) {
 			m: DataLinkVLAN(VLANNone),
 		},
 		{
+			s:       "dl_vlan_pcp=foo",
+			invalid: true,
+		},
+		{
+			s:       "dl_vlan_pcp=0x0f",
+			invalid: true,
+		},
+		{
+			s: "dl_vlan_pcp=0",
+			m: DataLinkVLANPCP(0),
+		},
+		{
+			s: "dl_vlan_pcp=7",
+			m: DataLinkVLANPCP(7),
+		},
+		{
 			s:       "dl_type=foo",
 			invalid: true,
 		},
@@ -208,6 +224,87 @@ func Test_parseMatch(t *testing.T) {
 		{
 			s:       "vlan_tci=10/10/10",
 			invalid: true,
+		},
+		{
+			s:       "vlan_tci1=",
+			invalid: true,
+		},
+		{
+			s:       "vlan_tci1=foo",
+			invalid: true,
+		},
+		{
+			s:     "vlan_tci1=10",
+			final: "vlan_tci1=0x000a",
+			m:     VLANTCI1(10, 0),
+		},
+		{
+			s: "vlan_tci1=0x000a",
+			m: VLANTCI1(10, 0),
+		},
+		{
+			s:       "vlan_tci1=10/foo",
+			invalid: true,
+		},
+		{
+			s:     "vlan_tci1=10/10",
+			final: "vlan_tci1=0x000a/0x000a",
+			m:     VLANTCI1(10, 10),
+		},
+		{
+			s: "vlan_tci1=0x1000/0x1000",
+			m: VLANTCI1(0x1000, 0x1000),
+		},
+		{
+			s:       "vlan_tci1=10/10/10",
+			invalid: true,
+		},
+		{
+			s:       "ipv6_label=",
+			invalid: true,
+		},
+		{
+			s:       "ipv6_label=foo",
+			invalid: true,
+		},
+		{
+			s:     "ipv6_label=10",
+			final: "ipv6_label=0x0000a",
+			m:     IPv6Label(10, 0),
+		},
+		{
+			s: "ipv6_label=0x0000a",
+			m: IPv6Label(10, 0),
+		},
+		{
+			s:       "ipv6_label=10/foo",
+			invalid: true,
+		},
+		{
+			s:     "ipv6_label=10/10",
+			final: "ipv6_label=0x0000a/0x0000a",
+			m:     IPv6Label(10, 10),
+		},
+		{
+			s: "ipv6_label=0x01000/0x01000",
+			m: IPv6Label(0x1000, 0x1000),
+		},
+		{
+			s:       "ipv6_label=10/10/10",
+			invalid: true,
+		},
+		{
+			s:       "arp_op=",
+			invalid: true,
+		},
+		{
+			s:       "arp_op=foo",
+			invalid: true,
+		},
+		{
+			s:     "arp_op=2",
+			final: "arp_op=2",
+			m:     ArpOp(2),
 		},
 		{
 			s:       "ct_mark=",

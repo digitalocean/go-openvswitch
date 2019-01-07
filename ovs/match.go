@@ -35,33 +35,39 @@ const (
 
 // Constants of full Match names.
 const (
-	arpOp    = "arp_op"
-	arpSHA   = "arp_sha"
-	arpSPA   = "arp_spa"
-	arpTHA   = "arp_tha"
-	arpTPA   = "arp_tpa"
-	conjID   = "conj_id"
-	ctMark   = "ct_mark"
-	ctState  = "ct_state"
-	ctZone   = "ct_zone"
-	dlSRC    = "dl_src"
-	dlDST    = "dl_dst"
-	dlType   = "dl_type"
-	dlVLAN   = "dl_vlan"
-	icmpType = "icmp_type"
-	ipv6DST  = "ipv6_dst"
-	ipv6SRC  = "ipv6_src"
-	ndSLL    = "nd_sll"
-	ndTLL    = "nd_tll"
-	ndTarget = "nd_target"
-	nwDST    = "nw_dst"
-	nwProto  = "nw_proto"
-	nwSRC    = "nw_src"
-	tcpFlags = "tcp_flags"
-	tpDST    = "tp_dst"
-	tpSRC    = "tp_src"
-	tunID    = "tun_id"
-	vlanTCI  = "vlan_tci"
+	arpOp     = "arp_op"
+	arpSHA    = "arp_sha"
+	arpSPA    = "arp_spa"
+	arpTHA    = "arp_tha"
+	arpTPA    = "arp_tpa"
+	conjID    = "conj_id"
+	ctMark    = "ct_mark"
+	ctState   = "ct_state"
+	ctZone    = "ct_zone"
+	dlSRC     = "dl_src"
+	dlDST     = "dl_dst"
+	dlType    = "dl_type"
+	dlVLAN    = "dl_vlan"
+	dlVLANPCP = "dl_vlan_pcp"
+	icmpType  = "icmp_type"
+	ipv6DST   = "ipv6_dst"
+	ipv6SRC   = "ipv6_src"
+	ipv6Label = "ipv6_label"
+	ndSLL     = "nd_sll"
+	ndTLL     = "nd_tll"
+	ndTarget  = "nd_target"
+	nwECN     = "nw_ecn"
+	nwDST     = "nw_dst"
+	nwProto   = "nw_proto"
+	nwTOS     = "nw_tos"
+	nwTTL     = "nw_ttl"
+	nwSRC     = "nw_src"
+	tcpFlags  = "tcp_flags"
+	tpDST     = "tp_dst"
+	tpSRC     = "tp_src"
+	tunID     = "tun_id"
+	vlanTCI   = "vlan_tci"
+	vlanTCI1  = "vlan_tci1"
 )
 
 // A Match is a type which can be marshaled into an OpenFlow packet matching
@@ -209,6 +215,34 @@ func (m *dataLinkVLANMatch) GoString() string {
 	return fmt.Sprintf("ovs.DataLinkVLAN(%d)", m.vid)
 }
 
+// DataLinkVLANPCP matches packets with the specified VLAN PCP matching pcp.
+func DataLinkVLANPCP(pcp int) Match {
+	return &dataLinkVLANPCPMatch{
+		pcp: pcp,
+	}
+}
+
+var _ Match = &dataLinkVLANPCPMatch{}
+
+// A dataLinkVLANPCPMatch is a Match returned by DataLinkVLANPCP.
+type dataLinkVLANPCPMatch struct {
+	pcp int
+}
+
+// MarshalText implements Match.
+func (m *dataLinkVLANPCPMatch) MarshalText() ([]byte, error) {
+	if !validVLANPCP(m.pcp) {
+		return nil, errInvalidVLANPCP
+	}
+
+	return bprintf("%s=%d", dlVLANPCP, m.pcp), nil
+}
+
+// GoString implements Match.
+func (m *dataLinkVLANPCPMatch) GoString() string {
+	return fmt.Sprintf("ovs.DataLinkVLANPCP(%d)", m.pcp)
+}
+
 // NetworkSource matches packets with a source IPv4 address or IPv4 CIDR
 // block matching ip.
 func NetworkSource(ip string) Match {
@@ -247,6 +281,78 @@ func (m *networkMatch) GoString() string {
 	}
 
 	return fmt.Sprintf("ovs.NetworkDestination(%q)", m.ip)
+}
+
+// NetworkECN creates a new networkECN
+func NetworkECN(ecn int) Match {
+	return &networkECN{
+		ecn: ecn,
+	}
+}
+
+var _ Match = &networkECN{}
+
+// a networkECN is a match for network Explicit Congestion Notification
+type networkECN struct {
+	ecn int
+}
+
+// MarshalText implements Match.
+func (e *networkECN) MarshalText() ([]byte, error) {
+	return bprintf("nw_ecn=%d", e.ecn), nil
+}
+
+// GoString implements Match.
+func (e *networkECN) GoString() string {
+	return fmt.Sprintf("ovs.NetworkECN(%d)", e.ecn)
+}
+
+// NetworkTOS returns a new networkTOS type
+func NetworkTOS(tos int) Match {
+	return &networkTOS{
+		tos: tos,
+	}
+}
+
+var _ Match = &networkTOS{}
+
+// networkTOS is a match for network type of service
+type networkTOS struct {
+	tos int
+}
+
+// MarshalText implements Match.
+func (t *networkTOS) MarshalText() ([]byte, error) {
+	return bprintf("nw_tos=%d", t.tos), nil
+}
+
+// GoString implements Match.
+func (t *networkTOS) GoString() string {
+	return fmt.Sprintf("ovs.NetworkTOS(%d)", t.tos)
+}
+
+// NetworkTTL returns a new networkTTL
+func NetworkTTL(ttl int) Match {
+	return &networkTTL{
+		ttl: ttl,
+	}
+}
+
+var _ Match = &networkTTL{}
+
+// networkTTL is a match for network time to live
+type networkTTL struct {
+	ttl int
+}
+
+// MarshalText implements Match.
+func (t *networkTTL) MarshalText() ([]byte, error) {
+	return bprintf("nw_ttl=%d", t.ttl), nil
+}
+
+// GoString implements Match.
+func (t *networkTTL) GoString() string {
+	return fmt.Sprintf("ovs.NetworkTTL(%d)", t.ttl)
 }
 
 // ConjunctionID matches flows that have matched all dimension of a conjunction
@@ -361,6 +467,30 @@ func (m *icmpTypeMatch) MarshalText() ([]byte, error) {
 // GoString implements Match.
 func (m *icmpTypeMatch) GoString() string {
 	return fmt.Sprintf("ovs.ICMPType(%d)", m.typ)
+}
+
+// InPortMatch matches packets ingressing from a specified OVS port
+func InPortMatch(port int) Match {
+	return &inPortMatch{
+		port: port,
+	}
+}
+
+var _ Match = &inPortMatch{}
+
+// inPort matches packets ingressing from a specified OVS port
+type inPortMatch struct {
+	port int
+}
+
+// MarshalText implements Match.
+func (i *inPortMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%d", inPort, i.port), nil
+}
+
+// GoString implements Match.
+func (i *inPortMatch) GoString() string {
+	return fmt.Sprintf("ovs.InPort(%q)", i.port)
 }
 
 // NeighborDiscoveryTarget matches packets with an IPv6 neighbor discovery target
@@ -702,6 +832,94 @@ func (m *vlanTCIMatch) MarshalText() ([]byte, error) {
 // GoString implements Match.
 func (m *vlanTCIMatch) GoString() string {
 	return fmt.Sprintf("ovs.VLANTCI(0x%04x, 0x%04x)", m.tci, m.mask)
+}
+
+// A vlanTCI1Match is a Match returned by VLANTCI1.
+type vlanTCI1Match struct {
+	tci  uint16
+	mask uint16
+}
+
+// VLANTCI1 matches packets based on their VLAN tag control information, using
+// the specified TCI and optional mask value.
+func VLANTCI1(tci, mask uint16) Match {
+	return &vlanTCI1Match{
+		tci:  tci,
+		mask: mask,
+	}
+}
+
+// MarshalText implements Match.
+func (m *vlanTCI1Match) MarshalText() ([]byte, error) {
+	if m.mask != 0 {
+		return bprintf("%s=0x%04x/0x%04x", vlanTCI1, m.tci, m.mask), nil
+	}
+
+	return bprintf("%s=0x%04x", vlanTCI1, m.tci), nil
+}
+
+// GoString implements Match.
+func (m *vlanTCI1Match) GoString() string {
+	return fmt.Sprintf("ovs.VLANTCI1(0x%04x, 0x%04x)", m.tci, m.mask)
+}
+
+// An ipv6LabelMatch is a Match returned by IPv6Label.
+type ipv6LabelMatch struct {
+	label uint32
+	mask  uint32
+}
+
+// IPv6Label matches packets based on their IPv6 label information, using
+// the specified label and optional mask value.
+func IPv6Label(label, mask uint32) Match {
+	return &ipv6LabelMatch{
+		label: label,
+		mask:  mask,
+	}
+}
+
+// MarshalText implements Match.
+func (m *ipv6LabelMatch) MarshalText() ([]byte, error) {
+	if !validIPv6Label(m.label) || !validIPv6Label(m.mask) {
+		return nil, errInvalidIPv6Label
+	}
+	if m.mask != 0 {
+		return bprintf("%s=0x%05x/0x%05x", ipv6Label, m.label, m.mask), nil
+	}
+
+	return bprintf("%s=0x%05x", ipv6Label, m.label), nil
+}
+
+// GoString implements Match.
+func (m *ipv6LabelMatch) GoString() string {
+	return fmt.Sprintf("ovs.IPv6Label(0x%04x, 0x%04x)", m.label, m.mask)
+}
+
+// An arpOpMatch is a Match returned by ArpOp.
+type arpOpMatch struct {
+	op uint16
+}
+
+// ArpOp matches packets based on their IPv6 label information, using
+// the specified op.
+func ArpOp(op uint16) Match {
+	return &arpOpMatch{
+		op: op,
+	}
+}
+
+// MarshalText implements Match.
+func (m *arpOpMatch) MarshalText() ([]byte, error) {
+	if !validARPOP(m.op) {
+		return nil, errInvalidARPOP
+	}
+
+	return bprintf("%s=%1d", arpOp, m.op), nil
+}
+
+// GoString implements Match.
+func (m *arpOpMatch) GoString() string {
+	return fmt.Sprintf("ovs.ArpOp(%01d)", m.op)
 }
 
 // A connectionTrackingMarkMatch is a Match returned by ConnectionTrackingMark.

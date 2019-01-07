@@ -30,6 +30,9 @@ type Client struct {
 	// OpenFlow wraps functionality of the 'ovs-ofctl' binary.
 	OpenFlow *OpenFlowService
 
+	// App wraps functionality of the 'ovs-appctl' binary
+	App *AppService
+
 	// VSwitch wraps functionality of the 'ovs-vsctl' binary.
 	VSwitch *VSwitchService
 
@@ -231,6 +234,11 @@ func New(options ...OptionFunc) *Client {
 		c: c,
 	}
 	c.OpenFlow = ofs
+
+	app := &AppService{
+		c: c,
+	}
+	c.App = app
 
 	return c
 }
