@@ -425,6 +425,8 @@ func parseEach(in []byte, prefix []byte, fn func(b []byte) error) error {
 	// which must be ignored.  A banner appears containing "(OF1.x)" which we
 	// detect here to discover if the last line should be discarded.
 	hasDuration := bytes.Contains(scanner.Bytes(), []byte("(OF1."))
+	// Detect if CUSTOM Statistics is present, to skip additional lines
+	hasCustomStats := bytes.Contains(in, []byte("CUSTOM"))
 
 	// Scan every two lines to retrieve information needed to unmarshal
 	// a single PortStats struct.
@@ -438,9 +440,20 @@ func parseEach(in []byte, prefix []byte, fn func(b []byte) error) error {
 		}
 		b = append(b, scanner.Bytes()...)
 
-		// Discard the third line of information if applicable.
-		if hasDuration && !scanner.Scan() {
-			return io.ErrUnexpectedEOF
+		if hasDuration {
+			// Discard the third line of information if applicable.
+			if !scanner.Scan() {
+				return io.ErrUnexpectedEOF
+			}
+			//Discard 4th & 5th lines if Custom stats are present
+			if hasCustomStats {
+				if !scanner.Scan() {
+					return io.ErrUnexpectedEOF
+				}
+				if !scanner.Scan() {
+					return io.ErrUnexpectedEOF
+				}
+			}
 		}
 
 		if err := fn(b); err != nil {
