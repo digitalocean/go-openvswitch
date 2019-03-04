@@ -31,7 +31,7 @@ func parseMatch(key string, value string) (Match, error) {
 		return parseMACMatch(key, value)
 	case arpOp:
 		return parseArpOp(value)
-	case icmpType, nwProto:
+	case icmpType, icmpCode, icmp6Type, icmp6Code, nwProto:
 		return parseIntMatch(key, value, math.MaxUint8)
 	case ctZone:
 		return parseIntMatch(key, value, math.MaxUint16)
@@ -120,6 +120,12 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 	switch key {
 	case icmpType:
 		return ICMPType(uint8(t)), nil
+	case icmpCode:
+		return ICMPCode(uint8(t)), nil
+	case icmp6Type:
+		return ICMP6Type(uint8(t)), nil
+	case icmp6Code:
+		return ICMP6Code(uint8(t)), nil
 	case inPort:
 		return InPortMatch(int(t)), nil
 	case nwECN:

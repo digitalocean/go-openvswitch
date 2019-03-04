@@ -109,7 +109,7 @@ func (s *DatapathService) List() ([]Datapath, error) {
 		}),
 	}
 
-	flags := netlink.HeaderFlagsRequest | netlink.HeaderFlagsDump
+	flags := netlink.Request | netlink.Dump
 	msgs, err := s.c.c.Execute(req, s.f.ID, flags)
 	if err != nil {
 		return nil, err

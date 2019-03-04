@@ -50,6 +50,9 @@ const (
 	dlVLAN    = "dl_vlan"
 	dlVLANPCP = "dl_vlan_pcp"
 	icmpType  = "icmp_type"
+	icmpCode  = "icmp_code"
+	icmp6Type = "icmpv6_type"
+	icmp6Code = "icmpv6_code"
 	ipv6DST   = "ipv6_dst"
 	ipv6SRC   = "ipv6_src"
 	ipv6Label = "ipv6_label"
@@ -467,6 +470,78 @@ func (m *icmpTypeMatch) MarshalText() ([]byte, error) {
 // GoString implements Match.
 func (m *icmpTypeMatch) GoString() string {
 	return fmt.Sprintf("ovs.ICMPType(%d)", m.typ)
+}
+
+// ICMPCode matches packets with the specified ICMP code
+func ICMPCode(code uint8) Match {
+	return &icmpCodeMatch{
+		code: code,
+	}
+}
+
+var _ Match = &icmpCodeMatch{}
+
+// An icmpCodeMatch is a Match returned by ICMPCode
+type icmpCodeMatch struct {
+	code uint8
+}
+
+// MarshalText implements Match.
+func (m *icmpCodeMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%d", icmpCode, m.code), nil
+}
+
+// GoString implements Match.
+func (m *icmpCodeMatch) GoString() string {
+	return fmt.Sprintf("ovs.ICMPCode(%d)", m.code)
+}
+
+// ICMP6Type matches packets with the specified ICMP type matching typ.
+func ICMP6Type(typ uint8) Match {
+	return &icmp6TypeMatch{
+		typ: typ,
+	}
+}
+
+var _ Match = &icmp6TypeMatch{}
+
+// An icmpTypeMatch is a Match returned by ICMPType.
+type icmp6TypeMatch struct {
+	typ uint8
+}
+
+// MarshalText implements Match.
+func (m *icmp6TypeMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%d", icmp6Type, m.typ), nil
+}
+
+// GoString implements Match.
+func (m *icmp6TypeMatch) GoString() string {
+	return fmt.Sprintf("ovs.ICMP6Type(%d)", m.typ)
+}
+
+// ICMP6Code matches packets with the specified ICMP type matching typ.
+func ICMP6Code(code uint8) Match {
+	return &icmp6CodeMatch{
+		code: code,
+	}
+}
+
+var _ Match = &icmp6CodeMatch{}
+
+// An icmpCodeMatch is a Match returned by ICMP6Code
+type icmp6CodeMatch struct {
+	code uint8
+}
+
+// MarshalText implements Match.
+func (m *icmp6CodeMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%d", icmp6Code, m.code), nil
+}
+
+// GoString implements Match.
+func (m *icmp6CodeMatch) GoString() string {
+	return fmt.Sprintf("ovs.ICMP6Code(%d)", m.code)
 }
 
 // InPortMatch matches packets ingressing from a specified OVS port
