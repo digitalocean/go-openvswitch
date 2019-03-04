@@ -136,12 +136,24 @@ func Test_parseMatch(t *testing.T) {
 			m: ICMPType(1),
 		},
 		{
+			s: "icmp_code=1",
+			m: ICMPCode(1),
+		},
+		{
 			s: "ipv6_src=2001:db8::1",
 			m: IPv6Source("2001:db8::1"),
 		},
 		{
 			s: "ipv6_dst=2001:db8::1",
 			m: IPv6Destination("2001:db8::1"),
+		},
+		{
+			s: "icmpv6_type=135",
+			m: ICMP6Type(135),
+		},
+		{
+			s: "icmpv6_code=0",
+			m: ICMP6Code(0),
 		},
 		{
 			s:       "nd_sll=foo",
