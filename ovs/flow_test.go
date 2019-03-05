@@ -95,13 +95,15 @@ func TestFlowMarshalText(t *testing.T) {
 				Priority: 1500,
 				Protocol: ProtocolICMPv4,
 				Matches: []Match{
+					ICMPType(3),
+					ICMPCode(1),
 					DataLinkSource("00:11:22:33:44:55"),
 				},
 				Actions: []Action{
 					Resubmit(0, 1),
 				},
 			},
-			s: "priority=1500,icmp,dl_src=00:11:22:33:44:55,table=0,idle_timeout=0,actions=resubmit(,1)",
+			s: "priority=1500,icmp,icmp_type=3,icmp_code=1,dl_src=00:11:22:33:44:55,table=0,idle_timeout=0,actions=resubmit(,1)",
 		},
 		{
 			desc: "ICMPv6 Flow",
@@ -110,7 +112,7 @@ func TestFlowMarshalText(t *testing.T) {
 				Protocol: ProtocolICMPv6,
 				InPort:   74,
 				Matches: []Match{
-					ICMPType(135),
+					ICMP6Type(135),
 					IPv6Source("fe80:aaaa:bbbb:cccc:dddd::1/124"),
 					NeighborDiscoverySourceLinkLayer(
 						net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
@@ -123,7 +125,27 @@ func TestFlowMarshalText(t *testing.T) {
 					Resubmit(0, 1),
 				},
 			},
-			s: "priority=2024,icmp6,in_port=74,icmp_type=135,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,nd_sll=00:11:22:33:44:55,table=0,idle_timeout=0,actions=mod_vlan_vid:10,resubmit(,1)",
+			s: "priority=2024,icmp6,in_port=74,icmpv6_type=135,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,nd_sll=00:11:22:33:44:55,table=0,idle_timeout=0,actions=mod_vlan_vid:10,resubmit(,1)",
+		},
+		{
+			desc: "ICMPv6 Type and Code Flow",
+			f: &Flow{
+				Priority: 2024,
+				Protocol: ProtocolICMPv6,
+				InPort:   74,
+				Matches: []Match{
+					ICMP6Type(1),
+					ICMP6Code(3),
+					IPv6Source("fe80:aaaa:bbbb:cccc:dddd::1/124"),
+				},
+				Table:       0,
+				IdleTimeout: 0,
+				Actions: []Action{
+					ModVLANVID(10),
+					Resubmit(0, 1),
+				},
+			},
+			s: "priority=2024,icmp6,in_port=74,icmpv6_type=1,icmpv6_code=3,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,table=0,idle_timeout=0,actions=mod_vlan_vid:10,resubmit(,1)",
 		},
 		{
 			desc: "IPv4 Flow",
@@ -493,11 +515,13 @@ func TestFlowUnmarshalText(t *testing.T) {
 		},
 		{
 			desc: "ICMPv4 Flow",
-			s:    "priority=1500,icmp,dl_src=00:11:22:33:44:55,table=0,idle_timeout=0,actions=resubmit(,1)",
+			s:    "priority=1500,icmp,icmp_type=3,icmp_code=1,dl_src=00:11:22:33:44:55,table=0,idle_timeout=0,actions=resubmit(,1)",
 			f: &Flow{
 				Priority: 1500,
 				Protocol: ProtocolICMPv4,
 				Matches: []Match{
+					ICMPType(3),
+					ICMPCode(1),
 					DataLinkSource("00:11:22:33:44:55"),
 				},
 				Actions: []Action{
@@ -507,17 +531,37 @@ func TestFlowUnmarshalText(t *testing.T) {
 		},
 		{
 			desc: "ICMPv6 Flow",
-			s:    "priority=2024,icmp6,in_port=74,icmp_type=135,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,nd_sll=00:11:22:33:44:55,table=0,idle_timeout=0,actions=mod_vlan_vid:10,resubmit(,1)",
+			s:    "priority=2024,icmp6,in_port=74,icmpv6_type=135,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,nd_sll=00:11:22:33:44:55,table=0,idle_timeout=0,actions=mod_vlan_vid:10,resubmit(,1)",
 			f: &Flow{
 				Priority: 2024,
 				Protocol: ProtocolICMPv6,
 				InPort:   74,
 				Matches: []Match{
-					ICMPType(135),
+					ICMP6Type(135),
 					IPv6Source("fe80:aaaa:bbbb:cccc:dddd::1/124"),
 					NeighborDiscoverySourceLinkLayer(
 						net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
 					),
+				},
+				Table:       0,
+				IdleTimeout: 0,
+				Actions: []Action{
+					ModVLANVID(10),
+					Resubmit(0, 1),
+				},
+			},
+		},
+		{
+			desc: "ICMPv6 Type and Code Flow",
+			s:    "priority=2024,icmp6,in_port=74,icmpv6_type=1,icmpv6_code=3,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,table=0,idle_timeout=0,actions=mod_vlan_vid:10,resubmit(,1)",
+			f: &Flow{
+				Priority: 2024,
+				Protocol: ProtocolICMPv6,
+				InPort:   74,
+				Matches: []Match{
+					ICMP6Type(1),
+					ICMP6Code(3),
+					IPv6Source("fe80:aaaa:bbbb:cccc:dddd::1/124"),
 				},
 				Table:       0,
 				IdleTimeout: 0,

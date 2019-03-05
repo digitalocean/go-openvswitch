@@ -472,7 +472,7 @@ func (m *icmpTypeMatch) GoString() string {
 	return fmt.Sprintf("ovs.ICMPType(%d)", m.typ)
 }
 
-// ICMPCode matches packets with the specified ICMP code
+// ICMPCode matches packets with the specified ICMP code.
 func ICMPCode(code uint8) Match {
 	return &icmpCodeMatch{
 		code: code,
@@ -481,7 +481,7 @@ func ICMPCode(code uint8) Match {
 
 var _ Match = &icmpCodeMatch{}
 
-// An icmpCodeMatch is a Match returned by ICMPCode
+// An icmpCodeMatch is a Match returned by ICMPCode.
 type icmpCodeMatch struct {
 	code uint8
 }
@@ -505,7 +505,7 @@ func ICMP6Type(typ uint8) Match {
 
 var _ Match = &icmp6TypeMatch{}
 
-// An icmpTypeMatch is a Match returned by ICMPType.
+// An icmp6TypeMatch is a Match returned by ICMP6Type.
 type icmp6TypeMatch struct {
 	typ uint8
 }
@@ -529,7 +529,7 @@ func ICMP6Code(code uint8) Match {
 
 var _ Match = &icmp6CodeMatch{}
 
-// An icmpCodeMatch is a Match returned by ICMP6Code
+// An icmp6CodeMatch is a Match returned by ICMP6Code.
 type icmp6CodeMatch struct {
 	code uint8
 }

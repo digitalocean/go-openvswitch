@@ -152,8 +152,8 @@ func Test_parseMatch(t *testing.T) {
 			m: ICMP6Type(135),
 		},
 		{
-			s: "icmpv6_code=0",
-			m: ICMP6Code(0),
+			s: "icmpv6_code=3",
+			m: ICMP6Code(3),
 		},
 		{
 			s:       "nd_sll=foo",
