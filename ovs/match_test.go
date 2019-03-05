@@ -492,6 +492,120 @@ func TestMatchICMPType(t *testing.T) {
 	}
 }
 
+func TestMatchICMPCode(t *testing.T) {
+	var tests = []struct {
+		desc string
+		code uint8
+		out  string
+	}{
+		{
+			desc: "host unreachable",
+			code: 1,
+			out:  "icmp_code=1",
+		},
+		{
+			desc: "protocol unreachable",
+			code: 2,
+			out:  "icmp_code=2",
+		},
+		{
+			desc: "port unreachable",
+			code: 3,
+			out:  "icmp_code=3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := ICMPCode(tt.code).MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestMatchICMP6Type(t *testing.T) {
+	var tests = []struct {
+		desc string
+		typ  uint8
+		out  string
+	}{
+		{
+			desc: "destination unreachable",
+			typ:  1,
+			out:  "icmpv6_type=1",
+		},
+		{
+			desc: "neighbor solicitation",
+			typ:  135,
+			out:  "icmpv6_type=135",
+		},
+		{
+			desc: "neighbor advertisement",
+			typ:  136,
+			out:  "icmpv6_type=136",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := ICMP6Type(tt.typ).MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestMatchICMP6Code(t *testing.T) {
+	var tests = []struct {
+		desc string
+		code uint8
+		out  string
+	}{
+		{
+			desc: "no route to destination",
+			code: 0,
+			out:  "icmpv6_code=0",
+		},
+		{
+			desc: "address unreachable",
+			code: 3,
+			out:  "icmpv6_code=3",
+		},
+		{
+			desc: "port unreachable",
+			code: 4,
+			out:  "icmpv6_code=4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := ICMP6Code(tt.code).MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMatchNetworkProtocol(t *testing.T) {
 	var tests = []struct {
 		desc string
@@ -1121,6 +1235,18 @@ func TestMatchGoString(t *testing.T) {
 		{
 			m: ICMPType(10),
 			s: `ovs.ICMPType(10)`,
+		},
+		{
+			m: ICMPCode(1),
+			s: `ovs.ICMPCode(1)`,
+		},
+		{
+			m: ICMP6Type(136),
+			s: `ovs.ICMP6Type(136)`,
+		},
+		{
+			m: ICMP6Code(2),
+			s: `ovs.ICMP6Code(2)`,
 		},
 		{
 			m: NeighborDiscoveryTarget("2001:db8::1"),

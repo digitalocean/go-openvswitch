@@ -77,10 +77,12 @@ func TestMatchFlowMarshalText(t *testing.T) {
 			f: &MatchFlow{
 				Protocol: ProtocolICMPv4,
 				Matches: []Match{
+					ICMPType(3),
+					ICMPCode(1),
 					DataLinkSource("00:11:22:33:44:55"),
 				},
 			},
-			s: "icmp,dl_src=00:11:22:33:44:55,table=0",
+			s: "icmp,icmp_type=3,icmp_code=1,dl_src=00:11:22:33:44:55,table=0",
 		},
 		{
 			desc: "ICMPv6 Flow",
@@ -88,7 +90,7 @@ func TestMatchFlowMarshalText(t *testing.T) {
 				Protocol: ProtocolICMPv6,
 				InPort:   74,
 				Matches: []Match{
-					ICMPType(135),
+					ICMP6Type(135),
 					IPv6Source("fe80:aaaa:bbbb:cccc:dddd::1/124"),
 					NeighborDiscoverySourceLinkLayer(
 						net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
@@ -96,7 +98,21 @@ func TestMatchFlowMarshalText(t *testing.T) {
 				},
 				Table: 0,
 			},
-			s: "icmp6,in_port=74,icmp_type=135,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,nd_sll=00:11:22:33:44:55,table=0",
+			s: "icmp6,in_port=74,icmpv6_type=135,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,nd_sll=00:11:22:33:44:55,table=0",
+		},
+		{
+			desc: "ICMPv6 Type and Code Flow",
+			f: &MatchFlow{
+				Protocol: ProtocolICMPv6,
+				InPort:   74,
+				Matches: []Match{
+					ICMP6Type(1),
+					ICMP6Code(3),
+					IPv6Source("fe80:aaaa:bbbb:cccc:dddd::1/124"),
+				},
+				Table: 0,
+			},
+			s: "icmp6,in_port=74,icmpv6_type=1,icmpv6_code=3,ipv6_src=fe80:aaaa:bbbb:cccc:dddd::1/124,table=0",
 		},
 		{
 			desc: "IPv4 Flow",
