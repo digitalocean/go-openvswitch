@@ -42,6 +42,22 @@ Datapath actions: 1`,
 			actions: NewDataPathActions("1"),
 		},
 		{
+			name: "in_port is LOCAL",
+			output: `Flow: tcp,in_port=LOCAL,vlan_tci=0x0000,dl_src=00:00:00:00:00:00,dl_dst=00:00:00:00:00:00,nw_src=192.0.2.2,nw_dst=0.0.0.0,nw_tos=0,nw_ecn=0,nw_ttl=0,tp_src=0,tp_dst=22,tcp_flags=0
+
+bridge("br0")
+-------------
+ 0. ip,in_port=LOCAL,nw_src=192.0.2.0/24, priority 32768
+    resubmit(,2)
+ 2. tcp,tp_dst=22, priority 32768
+    output:1
+
+Final flow: unchanged
+Megaflow: recirc_id=0,tcp,in_port=LOCAL,nw_src=192.0.2.0/24,nw_frag=no,tp_dst=22
+Datapath actions: 1`,
+			actions: NewDataPathActions("1"),
+		},
+		{
 			name: "popvlan and output port",
 			output: `Flow: tcp,in_port=3,vlan_tci=0x0000,dl_src=00:00:00:00:00:00,dl_dst=00:00:00:00:00:00,nw_src=192.0.2.2,nw_dst=0.0.0.0,nw_tos=0,nw_ecn=0,nw_ttl=0,tp_src=0,tp_dst=22,tcp_flags=0
 

@@ -35,9 +35,10 @@ var (
 )
 
 const (
-	popvlan  = "popvlan"
-	pushvlan = "pushvlan"
-	drop     = "drop"
+	popvlan   = "popvlan"
+	pushvlan  = "pushvlan"
+	drop      = "drop"
+	localPort = 65534
 )
 
 // DataPathActions is a text unmarshaler for data path actions in ofproto/trace output
@@ -84,6 +85,15 @@ func (df *DataPathFlows) UnmarshalText(b []byte) error {
 		kv := strings.Split(match, "=")
 		if len(kv) != 2 {
 			return fmt.Errorf("unexpected match format for match %q", match)
+		}
+
+		switch strings.TrimSpace(kv[0]) {
+		case inPort:
+			// Parse in_port=LOCAL into a new match.
+			if strings.TrimSpace(kv[1]) == portLOCAL {
+				df.Matches = append(df.Matches, InPortMatch(localPort))
+				continue
+			}
 		}
 
 		m, err := parseMatch(kv[0], kv[1])
