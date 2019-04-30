@@ -56,6 +56,7 @@ const (
 	ipv6DST   = "ipv6_dst"
 	ipv6SRC   = "ipv6_src"
 	ipv6Label = "ipv6_label"
+	metadata  = "metadata"
 	ndSLL     = "nd_sll"
 	ndTLL     = "nd_tll"
 	ndTarget  = "nd_target"
@@ -1210,6 +1211,30 @@ func (m *tunnelIDMatch) MarshalText() ([]byte, error) {
 	}
 
 	return bprintf("%s=%#x/%#x", tunID, m.id, m.mask), nil
+}
+
+// Metadata returns a Match that matches the given metadata value.
+func Metadata(m uint64) Match {
+	return &metadataMatch{
+		m: m,
+	}
+}
+
+var _ Match = &metadataMatch{}
+
+// A metadataMatch is a Match against a metadata value.
+type metadataMatch struct {
+	m uint64
+}
+
+// GoString implements Match.
+func (m *metadataMatch) GoString() string {
+	return fmt.Sprintf("ovs.Metadata(%#x)", m.m)
+}
+
+// MarshalText implements Match.
+func (m *metadataMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%#x", metadata, m.m), nil
 }
 
 // matchIPv4AddressOrCIDR attempts to create a Match using the specified key

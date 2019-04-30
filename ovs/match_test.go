@@ -1187,6 +1187,39 @@ func TestMatchTunnelID(t *testing.T) {
 	}
 }
 
+func TestMatchMetadata(t *testing.T) {
+	var tests = []struct {
+		desc string
+		m    Match
+		out  string
+	}{
+		{
+			desc: "metadata 0xa",
+			m:    Metadata(0xa),
+			out:  "metadata=0xa",
+		},
+		{
+			desc: "metadata max 64 bit",
+			m:    Metadata(0xffffffffffffffff),
+			out:  "metadata=0xffffffffffffffff",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := tt.m.MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMatchGoString(t *testing.T) {
 	var tests = []struct {
 		m Match
