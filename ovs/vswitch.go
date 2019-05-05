@@ -147,6 +147,31 @@ func (v *VSwitchService) GetController(bridge string) (string, error) {
 	return strings.TrimSpace(string(address)), nil
 }
 
+// CreateSFlow configures an sFlow collector for the vSwitch.
+func (v *VSwitchService) CreateSFlow(bridgeName string, agentIP string, collectorIP string, collectorPort string, headerBytes string, samplingN string, pollingSecs string) (string, error) {
+	var (
+		agent    = fmt.Sprintf("agent=%s", agentIP)
+		target   = fmt.Sprintf("target=\"%s:%s\"", collectorIP, collectorPort)
+		header   = fmt.Sprintf("header=%s", headerBytes)
+		sampling = fmt.Sprintf("sampling=%s", samplingN)
+		polling  = fmt.Sprintf("polling=%s", pollingSecs)
+
+		sFlowID = "sflow"
+	)
+
+	output, err := v.exec(
+		"--",
+		fmt.Sprintf("--id=@%s", sFlowID), "create", "sflow", agent, target, header, sampling, polling,
+		"--",
+		"set", "bridge", bridgeName, fmt.Sprintf("sflow=@%s", sFlowID),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
 // exec executes an ExecFunc using 'ovs-vsctl'.
 func (v *VSwitchService) exec(args ...string) ([]byte, error) {
 	return v.c.exec("ovs-vsctl", args...)
