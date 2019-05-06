@@ -1415,6 +1415,54 @@ func TestMatchARPOperation(t *testing.T) {
 	}
 }
 
+func TestMatchIPFrag(t *testing.T) {
+	var tests = []struct {
+		desc string
+		m    Match
+		out  string
+	}{
+		{
+			desc: "ip frag is no",
+			m:    IPFrag(IPFragFlagNo),
+			out:  "ip_frag=no",
+		},
+		{
+			desc: "ip frag is yes",
+			m:    IPFrag(IPFragFlagYes),
+			out:  "ip_frag=yes",
+		},
+		{
+			desc: "ip frag is first",
+			m:    IPFrag(IPFragFlagFirst),
+			out:  "ip_frag=first",
+		},
+		{
+			desc: "ip frag is later",
+			m:    IPFrag(IPFragFlagLater),
+			out:  "ip_frag=later",
+		},
+		{
+			desc: "ip frag is not later",
+			m:    IPFrag(IPFragFlagNotLater),
+			out:  "ip_frag=not_later",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := tt.m.MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 // mustParseMAC is a helper to parse a hardware address from a string using
 // net.ParseMAC, that panic on failure.
 func mustParseMAC(addr string) net.HardwareAddr {

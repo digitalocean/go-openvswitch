@@ -56,6 +56,7 @@ const (
 	ipv6DST   = "ipv6_dst"
 	ipv6SRC   = "ipv6_src"
 	ipv6Label = "ipv6_label"
+	ipFrag    = "ip_frag"
 	metadata  = "metadata"
 	ndSLL     = "nd_sll"
 	ndTLL     = "nd_tll"
@@ -1308,4 +1309,40 @@ func matchTransportPort(srcdst string, port uint16, mask uint16) ([]byte, error)
 	}
 
 	return bprintf("tp_%s=0x%04x/0x%04x", srcdst, port, mask), nil
+}
+
+// IPFragFlag is a string type which can be used with the IPFragMatch.
+type IPFragFlag string
+
+// OvS IP frag flags.
+// Source: http://www.openvswitch.org/support/dist-docs-2.5/ovs-ofctl.8.txt
+const (
+	IPFragFlagYes      IPFragFlag = "yes"
+	IPFragFlagNo       IPFragFlag = "no"
+	IPFragFlagFirst    IPFragFlag = "first"
+	IPFragFlagLater    IPFragFlag = "later"
+	IPFragFlagNotLater IPFragFlag = "not_later"
+)
+
+// IPFrag returns an ipFragMatch.
+func IPFrag(flag IPFragFlag) Match {
+	return &ipFragMatch{flag: flag}
+}
+
+// ipFragMatch implements the Match interface and is a match against
+// a packet fragmentation value.
+type ipFragMatch struct {
+	flag IPFragFlag
+}
+
+var _ Match = &ipFragMatch{}
+
+// GoString implements Match.
+func (m *ipFragMatch) GoString() string {
+	return fmt.Sprintf("ovs.IpFrag(%v)", m.flag)
+}
+
+// MarshalText implements Match.
+func (m *ipFragMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%s", ipFrag, m.flag), nil
 }
