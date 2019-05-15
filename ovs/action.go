@@ -66,6 +66,7 @@ var (
 // Action strings in lower case, as those are compared to the lower case letters
 // in parseAction().
 const (
+	actionAll       = "all"
 	actionDrop      = "drop"
 	actionFlood     = "flood"
 	actionInPort    = "in_port"
@@ -96,6 +97,8 @@ func (a *textAction) MarshalText() ([]byte, error) {
 // GoString implements Action.
 func (a *textAction) GoString() string {
 	switch a.action {
+	case actionAll:
+		return "ovs.All()"
 	case actionDrop:
 		return "ovs.Drop()"
 	case actionFlood:
@@ -110,6 +113,14 @@ func (a *textAction) GoString() string {
 		return "ovs.StripVLAN()"
 	default:
 		return fmt.Sprintf("// BUG(mdlayher): unimplemented OVS text action: %q", a.action)
+	}
+}
+
+// All outputs the packet on all switch ports except
+// the port on which it was received.
+func All() Action {
+	return &textAction{
+		action: actionAll,
 	}
 }
 
