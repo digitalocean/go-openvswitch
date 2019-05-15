@@ -25,6 +25,10 @@ func TestActionConstants(t *testing.T) {
 		out string
 	}{
 		{
+			a:   All(),
+			out: "all",
+		},
+		{
 			a:   Drop(),
 			out: "drop",
 		},
