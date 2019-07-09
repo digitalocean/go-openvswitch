@@ -15,6 +15,7 @@
 package ovs
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -42,12 +43,15 @@ func (a *AppService) ProtoTrace(bridge string, protocol Protocol, matches []Matc
 	}
 
 	matchArg := strings.Join(matchFlows, ",")
-	out, err := a.exec("ofproto/trace", bridge, matchArg)
+	args := []string{"ofproto/trace", bridge, matchArg}
+	out, err := a.exec(args...)
 	if err != nil {
 		return nil, err
 	}
 
-	pt := &ProtoTrace{}
+	pt := &ProtoTrace{
+		CommandStr: fmt.Sprintf("ovs-appctl %s", strings.Join(args, " ")),
+	}
 	err = pt.UnmarshalText(out)
 	if err != nil {
 		return nil, err

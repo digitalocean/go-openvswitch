@@ -109,6 +109,7 @@ func (df *DataPathFlows) UnmarshalText(b []byte) error {
 
 // ProtoTrace is a type representing output from ovs-app-ctl ofproto/trace
 type ProtoTrace struct {
+	CommandStr      string
 	InputFlow       *DataPathFlows
 	FinalFlow       *DataPathFlows
 	DataPathActions DataPathActions
