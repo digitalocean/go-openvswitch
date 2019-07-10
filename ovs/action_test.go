@@ -579,6 +579,54 @@ func TestConjunction(t *testing.T) {
 	}
 }
 
+func TestMove(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "move OK",
+			a:      Move("nw_src", "nw_dst"),
+			action: "move:nw_src->nw_dst",
+		},
+		{
+			desc: "both empty",
+			a:    Move("", ""),
+			err:  errMoveEmpty,
+		},
+		{
+			desc: "src empty",
+			a:    Move("", "nw_dst"),
+			err:  errMoveEmpty,
+		},
+		{
+			desc: "dst empty",
+			a:    Move("nw_src", ""),
+			err:  errMoveEmpty,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
 func TestActionGoString(t *testing.T) {
 	tests := []struct {
 		a Action
@@ -651,6 +699,10 @@ func TestActionGoString(t *testing.T) {
 		{
 			a: Conjunction(123, 1, 2),
 			s: `ovs.Conjunction(123, 1, 2)`,
+		},
+		{
+			a: Move("nw_src", "nw_dst"),
+			s: `ovs.Move("nw_src", "nw_dst")`,
 		},
 	}
 

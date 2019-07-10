@@ -61,6 +61,9 @@ var (
 	// errTooManyDimensions is returned when the specified dimension exceeds the total dimension
 	// in a conjunction action.
 	errDimensionTooLarge = errors.New("dimension number exceeds total number of dimensions")
+
+	// errMoveEmpty is returned when Move is called with src and/or dst set to the empty string.
+	errMoveEmpty = errors.New("src and/or dst field for action move are empty")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
@@ -578,6 +581,34 @@ func (a *setTunnelAction) GoString() string {
 // MarshalText implements Action.
 func (a *setTunnelAction) MarshalText() ([]byte, error) {
 	return bprintf("set_tunnel:%#x", a.tunnelID), nil
+}
+
+// Move sets the value of the destination field to the value of the source field.
+func Move(src, dst string) Action {
+	return &moveAction{
+		src: src,
+		dst: dst,
+	}
+}
+
+// A moveAction is an Action used by Move.
+type moveAction struct {
+	src string
+	dst string
+}
+
+// GoString implements Action.
+func (a *moveAction) GoString() string {
+	return fmt.Sprintf("ovs.Move(%q, %q)", a.src, a.dst)
+}
+
+// MarshalText implements Action.
+func (a *moveAction) MarshalText() ([]byte, error) {
+	if a.src == "" || a.dst == "" {
+		return nil, errMoveEmpty
+	}
+
+	return bprintf("move:%s->%s", a.src, a.dst), nil
 }
 
 // validARPOP indicates if an ARP OP is out of range. It should be in the range
