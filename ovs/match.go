@@ -1346,3 +1346,28 @@ func (m *ipFragMatch) GoString() string {
 func (m *ipFragMatch) MarshalText() ([]byte, error) {
 	return bprintf("%s=%s", ipFrag, m.flag), nil
 }
+
+// FieldMatch returns an fieldMatch.
+func FieldMatch(field, srcOrValue string) Match {
+	return &fieldMatch{field: field, srcOrValue: srcOrValue}
+}
+
+// fieldMatch implements the Match interface and
+// matches a given field against another a value, e.g. "0x123" or "1.2.3.4",
+// or against another src field in the packet, e.g "arp_tpa" or "NXM_OF_ARP_TPA[]".
+type fieldMatch struct {
+	field      string
+	srcOrValue string
+}
+
+var _ Match = &fieldMatch{}
+
+// GoString implements Match.
+func (m *fieldMatch) GoString() string {
+	return fmt.Sprintf("ovs.FieldMatch(%v,%v)", m.field, m.srcOrValue)
+}
+
+// MarshalText implements Match.
+func (m *fieldMatch) MarshalText() ([]byte, error) {
+	return bprintf("%s=%s", m.field, m.srcOrValue), nil
+}
