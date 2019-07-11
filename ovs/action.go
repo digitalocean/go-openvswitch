@@ -66,7 +66,7 @@ var (
 	errMoveEmpty = errors.New("src and/or dst field for action move are empty")
 
 	// errOutputFieldEmpty is returned when OutputField is called with field set to the empty string.
-	errOutputFieldEmpty = errors.New("field for action output (output=field syntax) is empty")
+	errOutputFieldEmpty = errors.New("field for action output (output:field syntax) is empty")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
