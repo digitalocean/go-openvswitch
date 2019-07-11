@@ -76,7 +76,7 @@ func Test_actionParser(t *testing.T) {
 					want, got)
 			}
 
-			as, err := (&Flow{Actions: actions}).marshalActions()
+			as, err := marshalActions(actions)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

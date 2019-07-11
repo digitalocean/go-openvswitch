@@ -667,6 +667,60 @@ func TestOutputField(t *testing.T) {
 	}
 }
 
+func TestLearn(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc: "learn ok",
+			a: Learn(&LearnedFlow{
+				DeleteLearned:  true,
+				FinHardTimeout: 10,
+				Matches:        []Match{DataLinkType(0x800)},
+				Actions:        []Action{OutputField("in_port"), Load("2", "tp_dst")},
+			}),
+			action: `learn(priority=0,dl_type=0x0800,table=0,idle_timeout=0,fin_hard_timeout=10,delete_learned,output:in_port,load:2->tp_dst)`,
+		},
+		{
+			desc: "prohibited learned action, mod_tp_dst",
+			a: Learn(&LearnedFlow{
+				DeleteLearned:  true,
+				FinHardTimeout: 10,
+				Matches:        []Match{DataLinkType(0x800)},
+				Actions:        []Action{ModTransportDestinationPort(1)},
+			}),
+			err: errInvalidLearnedActions,
+		},
+		{
+			desc: "nil learned flow",
+			a:    Learn(nil),
+			err:  errLearnedNil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestActionGoString(t *testing.T) {
 	tests := []struct {
 		a Action
@@ -747,6 +801,15 @@ func TestActionGoString(t *testing.T) {
 		{
 			a: OutputField("in_port"),
 			s: `ovs.OutputField("in_port")`,
+		},
+		{
+			a: Learn(&LearnedFlow{
+				DeleteLearned:  true,
+				FinHardTimeout: 10,
+				Matches:        []Match{DataLinkType(0x800)},
+				Actions:        []Action{OutputField("in_port")},
+			}),
+			s: `ovs.Learn(&ovs.LearnedFlow{Priority:0, InPort:0, Matches:[]ovs.Match{ovs.DataLinkType(0x0800)}, Table:0, IdleTimeout:0, Cookie:0x0, Actions:[]ovs.Action{ovs.OutputField("in_port")}, DeleteLearned:true, FinHardTimeout:10})`,
 		},
 	}
 

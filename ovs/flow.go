@@ -30,11 +30,12 @@ const (
 // Possible errors which may be encountered while marshaling or unmarshaling
 // a Flow.
 var (
-	errActionsWithDrop   = errors.New("Flow actions include drop, but multiple actions specified")
-	errInvalidActions    = errors.New("invalid actions for Flow")
-	errNoActions         = errors.New("no actions defined for Flow")
-	errNotEnoughElements = errors.New("not enough elements for valid Flow")
-	errPriorityNotFirst  = errors.New("priority field is not first in Flow")
+	errActionsWithDrop       = errors.New("Flow actions include drop, but multiple actions specified")
+	errInvalidActions        = errors.New("invalid actions for Flow")
+	errNoActions             = errors.New("no actions defined for Flow")
+	errNotEnoughElements     = errors.New("not enough elements for valid Flow")
+	errPriorityNotFirst      = errors.New("priority field is not first in Flow")
+	errInvalidLearnedActions = errors.New("invalid actions for LearnedFlow")
 )
 
 // A Protocol is an OpenFlow protocol designation accepted by Open vSwitch.
@@ -64,6 +65,20 @@ type Flow struct {
 	IdleTimeout int
 	Cookie      uint64
 	Actions     []Action
+}
+
+// A LearnedFlow is defined as part of the Learn action.
+type LearnedFlow struct {
+	Priority    int
+	InPort      int
+	Matches     []Match
+	Table       int
+	IdleTimeout int
+	Cookie      uint64
+	Actions     []Action
+
+	DeleteLearned  bool
+	FinHardTimeout int
 }
 
 var _ error = &FlowError{}
@@ -105,6 +120,10 @@ const (
 	hardAge     = "hard_age"
 	idleAge     = "idle_age"
 
+	// Variables used in LearnedFlows only.
+	deleteLearned  = "delete_learned"
+	finHardTimeout = "fin_hard_timeout"
+
 	portLOCAL = "LOCAL"
 )
 
@@ -120,12 +139,12 @@ func (f *Flow) MarshalText() ([]byte, error) {
 		}
 	}
 
-	actions, err := f.marshalActions()
+	actions, err := marshalActions(f.Actions)
 	if err != nil {
 		return nil, err
 	}
 
-	matches, err := f.marshalMatches()
+	matches, err := marshalMatches(f.Matches)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +198,81 @@ func (f *Flow) MarshalText() ([]byte, error) {
 	}
 
 	b = append(b, ","+keyActions+"="+strings.Join(actions, ",")...)
+
+	return b, nil
+}
+
+// MarshalText marshals a LearnedFlow into its textual form.
+func (f *LearnedFlow) MarshalText() ([]byte, error) {
+	if len(f.Actions) == 0 {
+		return nil, &FlowError{
+			Err: errNoActions,
+		}
+	}
+
+	// A learned flow can have a limited set of actions, namely `load` and `output:field`.
+	for _, a := range f.Actions {
+		switch a.(type) {
+		case *loadSetFieldAction:
+			if a.(*loadSetFieldAction).typ != actionLoad {
+				return nil, errInvalidLearnedActions
+			}
+		case *outputFieldAction:
+		default:
+			return nil, errInvalidLearnedActions
+		}
+	}
+
+	actions, err := marshalActions(f.Actions)
+	if err != nil {
+		return nil, err
+	}
+
+	matches, err := marshalMatches(f.Matches)
+	if err != nil {
+		return nil, err
+	}
+
+	b := make([]byte, len(priorityBytes))
+	copy(b, priorityBytes)
+
+	b = strconv.AppendInt(b, int64(f.Priority), 10)
+
+	if f.InPort != 0 {
+		b = append(b, ","+inPort+"="...)
+
+		// Special case, InPortLOCAL is converted to the literal string LOCAL
+		if f.InPort == PortLOCAL {
+			b = append(b, portLOCAL...)
+		} else {
+			b = strconv.AppendInt(b, int64(f.InPort), 10)
+		}
+	}
+
+	if len(matches) > 0 {
+		b = append(b, ","+strings.Join(matches, ",")...)
+	}
+
+	b = append(b, ","+table+"="...)
+	b = strconv.AppendInt(b, int64(f.Table), 10)
+
+	b = append(b, ","+idleTimeout+"="...)
+	b = strconv.AppendInt(b, int64(f.IdleTimeout), 10)
+
+	b = append(b, ","+finHardTimeout+"="...)
+	b = strconv.AppendInt(b, int64(f.FinHardTimeout), 10)
+
+	if f.DeleteLearned {
+		b = append(b, ","+deleteLearned...)
+	}
+
+	if f.Cookie > 0 {
+		// Hexadecimal cookies are much easier to read.
+		b = append(b, ","+cookie+"="...)
+		b = append(b, paddedHexUint64(f.Cookie)...)
+	}
+
+	b = append(b, ","+strings.Join(actions, ",")...)
 
 	return b, nil
 }
@@ -339,28 +433,28 @@ func (f *Flow) MatchFlow() *MatchFlow {
 	}
 }
 
-// marshalActions marshals all Actions in a Flow to their text form.
-func (f *Flow) marshalActions() ([]string, error) {
-	fns := make([]func() ([]byte, error), 0, len(f.Actions))
-	for _, fn := range f.Actions {
+// marshalActions marshals all provided Actions to their text form.
+func marshalActions(aa []Action) ([]string, error) {
+	fns := make([]func() ([]byte, error), 0, len(aa))
+	for _, fn := range aa {
 		fns = append(fns, fn.MarshalText)
 	}
 
-	return f.marshalFunctions(fns)
+	return marshalFunctions(fns)
 }
 
-// marshalMatches marshals all Matches in a Flow to their text form.
-func (f *Flow) marshalMatches() ([]string, error) {
-	fns := make([]func() ([]byte, error), 0, len(f.Matches))
-	for _, fn := range f.Matches {
+// marshalMatches marshals all provided Matches to their text form.
+func marshalMatches(mm []Match) ([]string, error) {
+	fns := make([]func() ([]byte, error), 0, len(mm))
+	for _, fn := range mm {
 		fns = append(fns, fn.MarshalText)
 	}
 
-	return f.marshalFunctions(fns)
+	return marshalFunctions(fns)
 }
 
 // marshalFunctions marshals a slice of functions to their text form.
-func (f *Flow) marshalFunctions(fns []func() ([]byte, error)) ([]string, error) {
+func marshalFunctions(fns []func() ([]byte, error)) ([]string, error) {
 	out := make([]string, 0, len(fns))
 	for _, fn := range fns {
 		o, err := fn()
