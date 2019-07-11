@@ -64,6 +64,9 @@ var (
 
 	// errMoveEmpty is returned when Move is called with src and/or dst set to the empty string.
 	errMoveEmpty = errors.New("src and/or dst field for action move are empty")
+
+	// errOutputFieldEmpty is returned when OutputField is called with field set to the empty string.
+	errOutputFieldEmpty = errors.New("field for action output (output:field syntax) is empty")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
@@ -184,6 +187,7 @@ const (
 	patModTransportSourcePort      = "mod_tp_src:%d"
 	patModVLANVID                  = "mod_vlan_vid:%d"
 	patOutput                      = "output:%d"
+	patOutputField                 = "output:%s"
 	patResubmitPort                = "resubmit:%s"
 	patResubmitPortTable           = "resubmit(%s,%s)"
 )
@@ -401,6 +405,34 @@ func (a *outputAction) MarshalText() ([]byte, error) {
 // GoString implements Action.
 func (a *outputAction) GoString() string {
 	return fmt.Sprintf("ovs.Output(%d)", a.port)
+}
+
+// OutputField outputs the packet to the switch port described by the specified field.
+// For example, when the `field` value is "in_port", the packet is output to the port
+// it came in on.
+func OutputField(field string) Action {
+	return &outputFieldAction{
+		field: field,
+	}
+}
+
+// An outputFieldAction is an Action which is used by OutputField.
+type outputFieldAction struct {
+	field string
+}
+
+// MarshalText implements Action.
+func (a *outputFieldAction) MarshalText() ([]byte, error) {
+	if a.field == "" {
+		return nil, errOutputFieldEmpty
+	}
+
+	return bprintf(patOutputField, a.field), nil
+}
+
+// GoString implements Action.
+func (a *outputFieldAction) GoString() string {
+	return fmt.Sprintf("ovs.OutputField(%q)", a.field)
 }
 
 // Conjunction associates a flow with a certain conjunction ID to match on more than

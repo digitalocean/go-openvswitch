@@ -627,6 +627,46 @@ func TestMove(t *testing.T) {
 		})
 	}
 }
+
+func TestOutputField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "output field OK",
+			a:      OutputField("in_port"),
+			action: "output:in_port",
+		},
+		{
+			desc: "empty field",
+			a:    OutputField(""),
+			err:  errOutputFieldEmpty,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestActionGoString(t *testing.T) {
 	tests := []struct {
 		a Action
@@ -703,6 +743,10 @@ func TestActionGoString(t *testing.T) {
 		{
 			a: Move("nw_src", "nw_dst"),
 			s: `ovs.Move("nw_src", "nw_dst")`,
+		},
+		{
+			a: OutputField("in_port"),
+			s: `ovs.OutputField("in_port")`,
 		},
 	}
 
