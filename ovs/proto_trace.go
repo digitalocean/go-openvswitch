@@ -30,6 +30,10 @@ var (
 	datapathActionsRegexp = regexp.MustCompile(`Datapath actions: (.*)`)
 	initialFlowRegexp     = regexp.MustCompile(`Flow: (.*)`)
 	finalFlowRegexp       = regexp.MustCompile(`Final flow: (.*)`)
+	megaFlowRegexp        = regexp.MustCompile(`Megaflow: (.*)`)
+	traceStartRegexp      = regexp.MustCompile(`bridge\("(.*)"\)`)
+	traceFlowRegexp       = regexp.MustCompile(` *[[:digit:]]+[.] ([[:alpha:]].*)`)
+	traceActionRegexp     = regexp.MustCompile(` +([[:alpha:]].*)`)
 
 	pushVLANPattern = `push_vlan(vid=[0-9]+,pcp=[0-9]+)`
 )
@@ -113,6 +117,7 @@ type ProtoTrace struct {
 	InputFlow       *DataPathFlows
 	FinalFlow       *DataPathFlows
 	DataPathActions DataPathActions
+	FlowActions     []string
 }
 
 // UnmarshalText unmarshals ProtoTrace text into a ProtoTrace type.
@@ -151,6 +156,23 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 			pt.FinalFlow = flow
 			continue
 		}
+
+		if _, matched := checkForMegaFlow(line); matched {
+			continue
+		}
+
+		if _, matched := checkForTraceStart(line); matched {
+			continue
+		}
+
+		if _, matched := checkForTraceFlow(line); matched {
+			continue
+		}
+
+		if matches, matched := checkForTraceAction(line); matched {
+			pt.FlowActions = append(pt.FlowActions, matches[1])
+			continue
+		}
 	}
 
 	return nil
@@ -176,6 +198,42 @@ func checkForInputFlow(s string) ([]string, bool) {
 
 func checkForFinalFlow(s string) ([]string, bool) {
 	matches := finalFlowRegexp.FindStringSubmatch(s)
+	if len(matches) == 0 {
+		return matches, false
+	}
+
+	return matches, true
+}
+
+func checkForMegaFlow(s string) ([]string, bool) {
+	matches := megaFlowRegexp.FindStringSubmatch(s)
+	if len(matches) == 0 {
+		return matches, false
+	}
+
+	return matches, true
+}
+
+func checkForTraceStart(s string) ([]string, bool) {
+	matches := traceStartRegexp.FindStringSubmatch(s)
+	if len(matches) == 0 {
+		return matches, false
+	}
+
+	return matches, true
+}
+
+func checkForTraceFlow(s string) ([]string, bool) {
+	matches := traceFlowRegexp.FindStringSubmatch(s)
+	if len(matches) == 0 {
+		return matches, false
+	}
+
+	return matches, true
+}
+
+func checkForTraceAction(s string) ([]string, bool) {
+	matches := traceActionRegexp.FindStringSubmatch(s)
 	if len(matches) == 0 {
 		return matches, false
 	}
