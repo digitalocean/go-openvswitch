@@ -125,7 +125,7 @@ type ProtoTrace struct {
 func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 	lines := strings.Split(string(b), "\n")
 	for _, line := range lines {
-		if matches, matched := checkForDataPathActions(line); matched {
+		if matches, matched := checkMatch(datapathActionsRegexp, line); matched {
 			// first index is always the left most match, following
 			// are the actual matches
 			pt.DataPathActions = &dataPathActions{
@@ -135,7 +135,7 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 			continue
 		}
 
-		if matches, matched := checkForInputFlow(line); matched {
+		if matches, matched := checkMatch(initialFlowRegexp, line); matched {
 			flow := &DataPathFlows{}
 			err := flow.UnmarshalText([]byte(matches[1]))
 			if err != nil {
@@ -146,7 +146,7 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 			continue
 		}
 
-		if matches, matched := checkForFinalFlow(line); matched {
+		if matches, matched := checkMatch(finalFlowRegexp, line); matched {
 			flow := &DataPathFlows{}
 			err := flow.UnmarshalText([]byte(matches[1]))
 			if err != nil {
@@ -157,19 +157,19 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 			continue
 		}
 
-		if _, matched := checkForMegaFlow(line); matched {
+		if _, matched := checkMatch(megaFlowRegexp, line); matched {
 			continue
 		}
 
-		if _, matched := checkForTraceStart(line); matched {
+		if _, matched := checkMatch(traceStartRegexp, line); matched {
 			continue
 		}
 
-		if _, matched := checkForTraceFlow(line); matched {
+		if _, matched := checkMatch(traceFlowRegexp, line); matched {
 			continue
 		}
 
-		if matches, matched := checkForTraceAction(line); matched {
+		if matches, matched := checkMatch(traceActionRegexp, line); matched {
 			pt.FlowActions = append(pt.FlowActions, matches[1])
 			continue
 		}
@@ -178,62 +178,8 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 	return nil
 }
 
-func checkForDataPathActions(s string) ([]string, bool) {
-	matches := datapathActionsRegexp.FindStringSubmatch(s)
-	if len(matches) == 0 {
-		return matches, false
-	}
-
-	return matches, true
-}
-
-func checkForInputFlow(s string) ([]string, bool) {
-	matches := initialFlowRegexp.FindStringSubmatch(s)
-	if len(matches) == 0 {
-		return matches, false
-	}
-
-	return matches, true
-}
-
-func checkForFinalFlow(s string) ([]string, bool) {
-	matches := finalFlowRegexp.FindStringSubmatch(s)
-	if len(matches) == 0 {
-		return matches, false
-	}
-
-	return matches, true
-}
-
-func checkForMegaFlow(s string) ([]string, bool) {
-	matches := megaFlowRegexp.FindStringSubmatch(s)
-	if len(matches) == 0 {
-		return matches, false
-	}
-
-	return matches, true
-}
-
-func checkForTraceStart(s string) ([]string, bool) {
-	matches := traceStartRegexp.FindStringSubmatch(s)
-	if len(matches) == 0 {
-		return matches, false
-	}
-
-	return matches, true
-}
-
-func checkForTraceFlow(s string) ([]string, bool) {
-	matches := traceFlowRegexp.FindStringSubmatch(s)
-	if len(matches) == 0 {
-		return matches, false
-	}
-
-	return matches, true
-}
-
-func checkForTraceAction(s string) ([]string, bool) {
-	matches := traceActionRegexp.FindStringSubmatch(s)
+func checkMatch(re *regexp.Regexp, s string) ([]string, bool) {
+	matches := re.FindStringSubmatch(s)
 	if len(matches) == 0 {
 		return matches, false
 	}
