@@ -21,9 +21,10 @@ import (
 
 func Test_UnmarshalText(t *testing.T) {
 	testcases := []struct {
-		name    string
-		output  string
-		actions DataPathActions
+		name            string
+		output          string
+		datapathActions DataPathActions
+		flowActions     []string
 	}{
 		{
 			name: "action output port",
@@ -39,7 +40,11 @@ bridge("br0")
 Final flow: unchanged
 Megaflow: recirc_id=0,tcp,in_port=3,nw_src=192.0.2.0/24,nw_frag=no,tp_dst=22
 Datapath actions: 1`,
-			actions: NewDataPathActions("1"),
+			datapathActions: NewDataPathActions("1"),
+			flowActions: []string{
+				"resubmit(,2)",
+				"output:1",
+			},
 		},
 		{
 			name: "in_port is LOCAL",
@@ -55,7 +60,11 @@ bridge("br0")
 Final flow: unchanged
 Megaflow: recirc_id=0,tcp,in_port=LOCAL,nw_src=192.0.2.0/24,nw_frag=no,tp_dst=22
 Datapath actions: 1`,
-			actions: NewDataPathActions("1"),
+			datapathActions: NewDataPathActions("1"),
+			flowActions: []string{
+				"resubmit(,2)",
+				"output:1",
+			},
 		},
 		{
 			name: "popvlan and output port",
@@ -71,7 +80,11 @@ bridge("br0")
 Final flow: unchanged
 Megaflow: recirc_id=0,tcp,in_port=3,nw_src=192.0.2.0/24,nw_frag=no,tp_dst=22
 Datapath actions: popvlan,1`,
-			actions: NewDataPathActions("popvlan,1"),
+			datapathActions: NewDataPathActions("popvlan,1"),
+			flowActions: []string{
+				"resubmit(,2)",
+				"output:1",
+			},
 		},
 		{
 			name: "pushvlan and output port",
@@ -87,7 +100,11 @@ bridge("br0")
 Final flow: unchanged
 Megaflow: recirc_id=0,tcp,in_port=3,nw_src=192.0.2.0/24,nw_frag=no,tp_dst=22
 Datapath actions: push_vlan(vid=20,pcp=0),4`,
-			actions: NewDataPathActions("push_vlan(vid=20,pcp=0),4"),
+			datapathActions: NewDataPathActions("push_vlan(vid=20,pcp=0),4"),
+			flowActions: []string{
+				"resubmit(,2)",
+				"output:1",
+			},
 		},
 		{
 			name: "drop",
@@ -103,7 +120,11 @@ bridge("br0")
 Final flow: unchanged
 Megaflow: recirc_id=0,tcp,in_port=3,nw_src=192.0.2.0/24,nw_frag=no,tp_dst=22
 Datapath actions: drop`,
-			actions: NewDataPathActions("drop"),
+			datapathActions: NewDataPathActions("drop"),
+			flowActions: []string{
+				"resubmit(,2)",
+				"output:1",
+			},
 		},
 	}
 
@@ -115,10 +136,16 @@ Datapath actions: drop`,
 				t.Errorf("error unmarshalling tests: %q", err)
 			}
 
-			if !reflect.DeepEqual(testcase.actions, pt.DataPathActions) {
-				t.Logf("expected: %v", testcase.actions)
+			if !reflect.DeepEqual(testcase.datapathActions, pt.DataPathActions) {
+				t.Logf("expected: %v", testcase.datapathActions)
 				t.Logf("actual: %v", pt.DataPathActions)
 				t.Error("unexpected datapath actions")
+			}
+
+			if !reflect.DeepEqual(testcase.flowActions, pt.FlowActions) {
+				t.Logf("expected: %v", testcase.flowActions)
+				t.Logf("actual: %v", pt.FlowActions)
+				t.Error("unexpected trace actions")
 			}
 		})
 	}
