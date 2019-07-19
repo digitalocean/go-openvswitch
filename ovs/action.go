@@ -67,6 +67,9 @@ var (
 
 	// errOutputFieldEmpty is returned when OutputField is called with field set to the empty string.
 	errOutputFieldEmpty = errors.New("field for action output (output:field syntax) is empty")
+
+	// errLearnedNil is returned when Learn is called with a nil *LearnedFlow.
+	errLearnedNil = errors.New("learned flow for action learn is nil")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
@@ -190,6 +193,7 @@ const (
 	patOutputField                 = "output:%s"
 	patResubmitPort                = "resubmit:%s"
 	patResubmitPortTable           = "resubmit(%s,%s)"
+	patLearn                       = "learn(%s)"
 )
 
 // ConnectionTracking sends a packet through the host's connection tracker.
@@ -641,6 +645,37 @@ func (a *moveAction) MarshalText() ([]byte, error) {
 	}
 
 	return bprintf("move:%s->%s", a.src, a.dst), nil
+}
+
+// Learn dynamically installs a LearnedFlow.
+func Learn(learned *LearnedFlow) Action {
+	return &learnAction{
+		learned: learned,
+	}
+}
+
+// A learnAction is an Action used by Learn.
+type learnAction struct {
+	learned *LearnedFlow
+}
+
+// GoString implements Action.
+func (a *learnAction) GoString() string {
+	return fmt.Sprintf("ovs.Learn(%#v)", a.learned)
+}
+
+// MarshalText implements Action.
+func (a *learnAction) MarshalText() ([]byte, error) {
+	if a.learned == nil {
+		return nil, errLearnedNil
+	}
+
+	l, err := a.learned.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return bprintf(patLearn, l), nil
 }
 
 // validARPOP indicates if an ARP OP is out of range. It should be in the range

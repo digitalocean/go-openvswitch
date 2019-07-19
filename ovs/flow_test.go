@@ -313,6 +313,47 @@ func TestFlowMarshalText(t *testing.T) {
 			},
 			s: "priority=0,in_port=72,tp_src=0xea60/0xffe0,tp_dst=0xea60/0xffe0,table=55,idle_timeout=0,actions=drop",
 		},
+		{
+			desc: "Flow with LearnedFlow in Learn action",
+			f: &Flow{
+				Priority: 5000,
+				Protocol: "tcp",
+				InPort:   3,
+				Matches: []Match{
+					NetworkDestination("169.254.169.254"),
+					TransportDestinationPort(80),
+				},
+				Actions: []Action{
+					Learn(
+						&LearnedFlow{
+							DeleteLearned:  true,
+							FinHardTimeout: 1,
+							Table:          0,
+							IdleTimeout:    60,
+							Priority:       5000,
+							InPort:         4,
+							Matches: []Match{
+								DataLinkType(0x800),
+								NetworkProtocol(6),
+								FieldMatch("NXM_OF_IP_SRC[]", "NXM_OF_IP_DST[]"),
+								FieldMatch("NXM_OF_TCP_SRC[]", "NXM_OF_TCP_DST[]"),
+								NetworkDestination("1.2.3.4"),
+								TransportDestinationPort(567),
+							},
+							Actions: []Action{
+								Load("NXM_OF_ETH_SRC[]", "NXM_OF_ETH_DST[]"),
+								Load("NXM_OF_IP_SRC[]", "NXM_OF_IP_DST[]"),
+								Load("NXM_OF_TCP_SRC[]", "NXM_OF_TCP_DST[]"),
+								OutputField("NXM_OF_IN_PORT[]"),
+							},
+						}),
+					ModNetworkSource(net.IPv4(1, 2, 3, 4)),
+					ModTransportSourcePort(567),
+					Output(4),
+				},
+			},
+			s: `priority=5000,tcp,in_port=3,nw_dst=169.254.169.254,tp_dst=80,table=0,idle_timeout=0,actions=learn(priority=5000,in_port=4,dl_type=0x0800,nw_proto=6,NXM_OF_IP_SRC[]=NXM_OF_IP_DST[],NXM_OF_TCP_SRC[]=NXM_OF_TCP_DST[],nw_dst=1.2.3.4,tp_dst=567,table=0,idle_timeout=60,fin_hard_timeout=1,delete_learned,load:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],load:NXM_OF_IP_SRC[]->NXM_OF_IP_DST[],load:NXM_OF_TCP_SRC[]->NXM_OF_TCP_DST[],output:NXM_OF_IN_PORT[]),mod_nw_src:1.2.3.4,mod_tp_src:567,output:4`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1171,11 +1212,11 @@ func flowsEqual(a *Flow, b *Flow) bool {
 		return true
 	}
 
-	am, err := a.marshalMatches()
+	am, err := marshalMatches(a.Matches)
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error parsing matches: %v", err))
 	}
-	bm, err := b.marshalMatches()
+	bm, err := marshalMatches(b.Matches)
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error parsing matches: %v", err))
 	}
@@ -1184,11 +1225,11 @@ func flowsEqual(a *Flow, b *Flow) bool {
 		return false
 	}
 
-	aa, err := a.marshalActions()
+	aa, err := marshalActions(a.Actions)
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error parsing actions: %v", err))
 	}
-	ba, err := b.marshalActions()
+	ba, err := marshalActions(b.Actions)
 	if err != nil {
 		panic(fmt.Sprintf("unexpected error parsing actions: %v", err))
 	}
