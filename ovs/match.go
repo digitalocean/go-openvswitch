@@ -35,44 +35,53 @@ const (
 
 // Constants of full Match names.
 const (
-	arpOp     = "arp_op"
-	arpSHA    = "arp_sha"
-	arpSPA    = "arp_spa"
-	arpTHA    = "arp_tha"
-	arpTPA    = "arp_tpa"
-	conjID    = "conj_id"
-	ctMark    = "ct_mark"
-	ctState   = "ct_state"
-	ctZone    = "ct_zone"
-	dlSRC     = "dl_src"
-	dlDST     = "dl_dst"
-	dlType    = "dl_type"
-	dlVLAN    = "dl_vlan"
-	dlVLANPCP = "dl_vlan_pcp"
-	icmpType  = "icmp_type"
-	icmpCode  = "icmp_code"
-	icmp6Type = "icmpv6_type"
-	icmp6Code = "icmpv6_code"
-	ipv6DST   = "ipv6_dst"
-	ipv6SRC   = "ipv6_src"
-	ipv6Label = "ipv6_label"
-	ipFrag    = "ip_frag"
-	metadata  = "metadata"
-	ndSLL     = "nd_sll"
-	ndTLL     = "nd_tll"
-	ndTarget  = "nd_target"
-	nwECN     = "nw_ecn"
-	nwDST     = "nw_dst"
-	nwProto   = "nw_proto"
-	nwTOS     = "nw_tos"
-	nwTTL     = "nw_ttl"
-	nwSRC     = "nw_src"
-	tcpFlags  = "tcp_flags"
-	tpDST     = "tp_dst"
-	tpSRC     = "tp_src"
-	tunID     = "tun_id"
-	vlanTCI   = "vlan_tci"
-	vlanTCI1  = "vlan_tci1"
+	arpOp       = "arp_op"
+	arpSHA      = "arp_sha"
+	arpSPA      = "arp_spa"
+	arpTHA      = "arp_tha"
+	arpTPA      = "arp_tpa"
+	conjID      = "conj_id"
+	ctMark      = "ct_mark"
+	ctState     = "ct_state"
+	ctZone      = "ct_zone"
+	dlDST       = "dl_dst"
+	dlSRC       = "dl_src"
+	dlType      = "dl_type"
+	dlVLAN      = "dl_vlan"
+	dlVLANPCP   = "dl_vlan_pcp"
+	icmp6Code   = "icmpv6_code"
+	icmp6Type   = "icmpv6_type"
+	icmpCode    = "icmp_code"
+	icmpType    = "icmp_type"
+	ipFrag      = "ip_frag"
+	ipv6DST     = "ipv6_dst"
+	ipv6Label   = "ipv6_label"
+	ipv6SRC     = "ipv6_src"
+	metadata    = "metadata"
+	ndSLL       = "nd_sll"
+	ndTarget    = "nd_target"
+	ndTLL       = "nd_tll"
+	nwDST       = "nw_dst"
+	nwECN       = "nw_ecn"
+	nwProto     = "nw_proto"
+	nwSRC       = "nw_src"
+	nwTOS       = "nw_tos"
+	nwTTL       = "nw_ttl"
+	tcpFlags    = "tcp_flags"
+	tpDST       = "tp_dst"
+	tpSRC       = "tp_src"
+	tunDST      = "tun_dst"
+	tunFlags    = "tun_flags"
+	tunGbpFlags = "tun_gbp_flags"
+	tunGbpID    = "tun_gbp_id"
+	tunID       = "tun_id"
+	tunSRC      = "tun_src"
+	tunTOS      = "tun_tos"
+	tunTTL      = "tun_ttl"
+	tunv6DST    = "tun_ipv6_dst"
+	tunv6SRC    = "tun_ipv6_src"
+	vlanTCI1    = "vlan_tci1"
+	vlanTCI     = "vlan_tci"
 )
 
 // A Match is a type which can be marshaled into an OpenFlow packet matching
@@ -336,6 +345,78 @@ func (t *networkTOS) GoString() string {
 	return fmt.Sprintf("ovs.NetworkTOS(%d)", t.tos)
 }
 
+// TunnelGBP returns a new tunnelGBP
+func TunnelGBP(gbp int) Match {
+	return &tunnelGBP{
+		gbp: gbp,
+	}
+}
+
+var _ Match = &tunnelGBP{}
+
+// tunnelGBP is a match for tunnel GBP
+type tunnelGBP struct {
+	gbp int
+}
+
+// MarshalText implements Match.
+func (t *tunnelGBP) MarshalText() ([]byte, error) {
+	return bprintf("tun_gbp_id=%d", t.gbp), nil
+}
+
+// GoString implements Match.
+func (t *tunnelGBP) GoString() string {
+	return fmt.Sprintf("ovs.TunnelGBP(%d)", t.gbp)
+}
+
+// TunnelGbpFlags returns a new tunnelFlags
+func TunnelGbpFlags(gbpFlags int) Match {
+	return &tunnelGbpFlags{
+		gbpFlags: gbpFlags,
+	}
+}
+
+var _ Match = &tunnelGbpFlags{}
+
+// tunnelGbpFlags is a match for tunnel Flags
+type tunnelGbpFlags struct {
+	gbpFlags int
+}
+
+// MarshalText implements Match.
+func (t *tunnelGbpFlags) MarshalText() ([]byte, error) {
+	return bprintf("tun_gbp_flags=%d", t.gbpFlags), nil
+}
+
+// GoString implements Match.
+func (t *tunnelGbpFlags) GoString() string {
+	return fmt.Sprintf("ovs.TunnelGbpFlags(%d)", t.gbpFlags)
+}
+
+// TunnelFlags returns a new tunnelFlags
+func TunnelFlags(flags int) Match {
+	return &tunnelFlags{
+		flags: flags,
+	}
+}
+
+var _ Match = &tunnelFlags{}
+
+// tunnelFlags is a match for tunnel Flags
+type tunnelFlags struct {
+	flags int
+}
+
+// MarshalText implements Match.
+func (t *tunnelFlags) MarshalText() ([]byte, error) {
+	return bprintf("tun_flags=%d", t.flags), nil
+}
+
+// GoString implements Match.
+func (t *tunnelFlags) GoString() string {
+	return fmt.Sprintf("ovs.TunnelFlags(%d)", t.flags)
+}
+
 // NetworkTTL returns a new networkTTL
 func NetworkTTL(ttl int) Match {
 	return &networkTTL{
@@ -360,12 +441,60 @@ func (t *networkTTL) GoString() string {
 	return fmt.Sprintf("ovs.NetworkTTL(%d)", t.ttl)
 }
 
+// TunnelTTL returns a new tunnelTTL
+func TunnelTTL(ttl int) Match {
+	return &tunnelTTL{
+		ttl: ttl,
+	}
+}
+
+var _ Match = &tunnelTTL{}
+
+// tunnelTTL is a match for a tunnel time to live
+type tunnelTTL struct {
+	ttl int
+}
+
+// MarshalText implements Match.
+func (t *tunnelTTL) MarshalText() ([]byte, error) {
+	return bprintf("tun_ttl=%d", t.ttl), nil
+}
+
+// GoString implements Match.
+func (t *tunnelTTL) GoString() string {
+	return fmt.Sprintf("ovs.TunnelTTL(%d)", t.ttl)
+}
+
 // ConjunctionID matches flows that have matched all dimension of a conjunction
 // inside of the openflow table.
 func ConjunctionID(id uint32) Match {
 	return &conjunctionIDMatch{
 		id: id,
 	}
+}
+
+// TunnelTOS returns a new tunnelTOS
+func TunnelTOS(tos int) Match {
+	return &tunnelTOS{
+		tos: tos,
+	}
+}
+
+var _ Match = &tunnelTOS{}
+
+// tunnelTOS is a match for a tunnel type of service
+type tunnelTOS struct {
+	tos int
+}
+
+// MarshalText implements Match.
+func (t *tunnelTOS) MarshalText() ([]byte, error) {
+	return bprintf("tun_tos=%d", t.tos), nil
+}
+
+// GoString implements Match.
+func (t *tunnelTOS) GoString() string {
+	return fmt.Sprintf("ovs.TunnelTOS(%d)", t.tos)
 }
 
 // A conjunctionIDMatch is a Match returned by ConjunctionID
@@ -1212,6 +1341,44 @@ func (m *tunnelIDMatch) MarshalText() ([]byte, error) {
 	}
 
 	return bprintf("%s=%#x/%#x", tunID, m.id, m.mask), nil
+}
+
+// TunnelSrc returns a Match with specified Tunnel Source.
+func TunnelSrc(addr string) Match {
+	return &tunnelMatch{
+		srcdst: source,
+		ip:     addr,
+	}
+}
+
+// TunnelDst returns a Match with specified Tunnel Destination.
+func TunnelDst(addr string) Match {
+	return &tunnelMatch{
+		srcdst: destination,
+		ip:     addr,
+	}
+}
+
+var _ Match = &tunnelMatch{}
+
+// A tunnelMatch is a Match against a tunnel {source|destination}.
+type tunnelMatch struct {
+	srcdst string
+	ip     string
+}
+
+// GoString implements Match.
+func (m *tunnelMatch) GoString() string {
+	if m.srcdst == source {
+		return fmt.Sprintf("ovs.TunnelSrc(%q)", m.ip)
+	}
+
+	return fmt.Sprintf("ovs.TunnelDst(%q)", m.ip)
+}
+
+// MarshalText implements Match.
+func (m *tunnelMatch) MarshalText() ([]byte, error) {
+	return matchIPv4AddressOrCIDR(fmt.Sprintf("tun_%s", m.srcdst), m.ip)
 }
 
 // Metadata returns a Match that matches the given metadata value.
