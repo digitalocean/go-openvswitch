@@ -80,9 +80,9 @@ func (c *Client) Close() error {
 
 // init initializes the generic netlink family service of Client.
 func (c *Client) init(families []genetlink.Family) error {
-	// Assume 4 families present.
+	// Assume 5 families present.
 	var gotf int
-	const wantf = 4
+	const wantf = 5
 
 	for _, f := range families {
 		// Ignore any families without the OVS prefix.
@@ -118,7 +118,7 @@ func (c *Client) initFamily(f genetlink.Family) error {
 			c: c,
 		}
 		return nil
-	case ovsh.FlowFamily, ovsh.PacketFamily, ovsh.VportFamily:
+	case ovsh.FlowFamily, ovsh.PacketFamily, ovsh.VportFamily, ovsh.MeterFamily:
 		// TODO(mdlayher): populate.
 		return nil
 	}
