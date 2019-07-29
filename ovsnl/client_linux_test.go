@@ -84,6 +84,7 @@ func TestClientOK(t *testing.T) {
 			ovsh.FlowFamily,
 			ovsh.PacketFamily,
 			ovsh.VportFamily,
+			ovsh.MeterFamily,
 		}), nil
 	})
 
@@ -127,6 +128,7 @@ func ovsFamilies(fn genltest.Func) genltest.Func {
 				ovsh.FlowFamily,
 				ovsh.PacketFamily,
 				ovsh.VportFamily,
+				ovsh.MeterFamily,
 			}), nil
 		}
 
