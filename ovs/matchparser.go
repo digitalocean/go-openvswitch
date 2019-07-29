@@ -68,7 +68,17 @@ func parseMatch(key string, value string) (Match, error) {
 		return parseIntMatch(key, value, math.MaxInt32)
 	case nwTTL:
 		return parseIntMatch(key, value, math.MaxInt32)
+	case tunTTL:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case tunTOS:
+		return parseIntMatch(key, value, math.MaxInt32)
 	case nwTOS:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case tunGbpID:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case tunGbpFlags:
+		return parseIntMatch(key, value, math.MaxInt32)
+	case tunFlags:
 		return parseIntMatch(key, value, math.MaxInt32)
 	case inPort:
 		return parseIntMatch(key, value, math.MaxInt32)
@@ -76,10 +86,18 @@ func parseMatch(key string, value string) (Match, error) {
 		return IPv6Source(value), nil
 	case ipv6DST:
 		return IPv6Destination(value), nil
+	case tunv6SRC:
+		return IPv6Source(value), nil
+	case tunv6DST:
+		return IPv6Destination(value), nil
 	case ipv6Label:
 		return parseIPv6Label(value)
 	case nwSRC:
 		return NetworkSource(value), nil
+	case tunSRC:
+		return NetworkSource(value), nil
+	case tunDST:
+		return NetworkDestination(value), nil
 	case nwDST:
 		return NetworkDestination(value), nil
 	case vlanTCI1:
@@ -132,8 +150,18 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 		return NetworkECN(int(t)), nil
 	case nwTTL:
 		return NetworkTTL(int(t)), nil
+	case tunTTL:
+		return TunnelTTL(int(t)), nil
+	case tunTOS:
+		return TunnelTOS(int(t)), nil
 	case nwTOS:
 		return NetworkTOS(int(t)), nil
+	case tunGbpID:
+		return TunnelGBP(int(t)), nil
+	case tunGbpFlags:
+		return TunnelGbpFlags(int(t)), nil
+	case tunFlags:
+		return TunnelFlags(int(t)), nil
 	case nwProto:
 		return NetworkProtocol(uint8(t)), nil
 	case ctZone:
