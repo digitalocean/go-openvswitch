@@ -202,6 +202,10 @@ func (v *VSwitchSetService) Bridge(bridge string, options BridgeOptions) error {
 type BridgeOptions struct {
 	// Protocols specifies the OpenFlow protocols the bridge should use.
 	Protocols []string
+
+	// Others specifies other ovs-vsctl set bridge settings e.g.
+	// "stp_enable=true", "mcast_snooping_enable=true" etc
+	Others []string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -211,6 +215,10 @@ func (o BridgeOptions) slice() []string {
 
 	if len(o.Protocols) > 0 {
 		s = append(s, fmt.Sprintf("protocols=%s", strings.Join(o.Protocols, ",")))
+	}
+
+	if len(o.Others) > 0 {
+		s = append(s, o.Others...)
 	}
 
 	return s
