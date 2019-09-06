@@ -1240,6 +1240,48 @@ func UnsetState(state CTState) string {
 	return fmt.Sprintf("-%s", state)
 }
 
+// Metadata returns a Match that matches the given Metadata exactly.
+func Metadata(id uint64) Match {
+	return &metadataMatch{
+		data: id,
+		mask: 0,
+	}
+}
+
+// MetadataWithMask returns a Match with specified Metadata and mask.
+func MetadataWithMask(id, mask uint64) Match {
+	return &metadataMatch{
+		data: id,
+		mask: mask,
+	}
+}
+
+var _ Match = &metadataMatch{}
+
+// A metadataMatch is a Match against a Metadata field.
+type metadataMatch struct {
+	data uint64
+	mask uint64
+}
+
+// GoString implements Match.
+func (m *metadataMatch) GoString() string {
+	if m.mask > 0 {
+		return fmt.Sprintf("ovs.MetadataWithMask(%#x, %#x)", m.data, m.mask)
+	}
+
+	return fmt.Sprintf("ovs.Metadata(%#x)", m.data)
+}
+
+// MarshalText implements Match.
+func (m *metadataMatch) MarshalText() ([]byte, error) {
+	if m.mask == 0 {
+		return bprintf("%s=%#x", metadata, m.data), nil
+	}
+
+	return bprintf("%s=%#x/%#x", metadata, m.data, m.mask), nil
+}
+
 // TCPFlags matches packets using their enabled TCP flags, when matching TCP
 // flags on a TCP segment.   Use the SetTCPFlag and UnsetTCPFlag functions to
 // populate the parameter list for this function.
@@ -1379,30 +1421,6 @@ func (m *tunnelMatch) GoString() string {
 // MarshalText implements Match.
 func (m *tunnelMatch) MarshalText() ([]byte, error) {
 	return matchIPv4AddressOrCIDR(fmt.Sprintf("tun_%s", m.srcdst), m.ip)
-}
-
-// Metadata returns a Match that matches the given metadata value.
-func Metadata(m uint64) Match {
-	return &metadataMatch{
-		m: m,
-	}
-}
-
-var _ Match = &metadataMatch{}
-
-// A metadataMatch is a Match against a metadata value.
-type metadataMatch struct {
-	m uint64
-}
-
-// GoString implements Match.
-func (m *metadataMatch) GoString() string {
-	return fmt.Sprintf("ovs.Metadata(%#x)", m.m)
-}
-
-// MarshalText implements Match.
-func (m *metadataMatch) MarshalText() ([]byte, error) {
-	return bprintf("%s=%#x", metadata, m.m), nil
 }
 
 // matchIPv4AddressOrCIDR attempts to create a Match using the specified key
