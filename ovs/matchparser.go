@@ -86,6 +86,8 @@ func parseMatch(key string, value string) (Match, error) {
 		return IPv6Source(value), nil
 	case ipv6DST:
 		return IPv6Destination(value), nil
+	case metadata:
+		return parseMetadata(value)
 	case tunv6SRC:
 		return IPv6Source(value), nil
 	case tunv6DST:
@@ -476,6 +478,39 @@ func parseCTMark(value string) (Match, error) {
 	// Match had too many parts, e.g. "ct_mark=10/10/10"
 	default:
 		return nil, fmt.Errorf("invalid ct_mark match: %q", value)
+	}
+}
+
+// parseMetadata parses a Metadata Match from value.
+func parseMetadata(value string) (Match, error) {
+	var values []uint64
+	for _, s := range strings.Split(value, "/") {
+		if !strings.HasPrefix(s, hexPrefix) {
+			v, err := strconv.Atoi(s)
+			if err != nil {
+				return nil, err
+			}
+
+			values = append(values, uint64(v))
+			continue
+		}
+
+		v, err := parseHexUint64(s)
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, v)
+	}
+
+	switch len(values) {
+	case 1:
+		return Metadata(values[0]), nil
+	case 2:
+		return MetadataWithMask(values[0], values[1]), nil
+	// Match had too many parts, e.g. "metadata=10/10/10"
+	default:
+		return nil, fmt.Errorf("invalid metadata match: %q", value)
 	}
 }
 
