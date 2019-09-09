@@ -34,6 +34,13 @@ var (
 	traceStartRegexp      = regexp.MustCompile(`bridge\("(.*)"\)`)
 	traceFlowRegexp       = regexp.MustCompile(` *[[:digit:]]+[.] ([[:alpha:]].*)`)
 	traceActionRegexp     = regexp.MustCompile(` +([[:alpha:]].*)`)
+	recircIDRegexp        = regexp.MustCompile(`recirc_id=`)
+	recircRegexp          = regexp.MustCompile(`recirc\(`)
+	ctCommentRegexp       = regexp.MustCompile(`^\s+->`)
+	ctThawRegexp          = regexp.MustCompile(`thaw`)
+	ctResumeFromRegexp    = regexp.MustCompile(`Resuming from table`)
+	ctResumeWithRegexp    = regexp.MustCompile(`resume conntrack with`)
+	tunNative             = regexp.MustCompile(`native tunnel`)
 
 	pushVLANPattern = `push_vlan(vid=[0-9]+,pcp=[0-9]+)`
 )
@@ -80,12 +87,25 @@ func (df *DataPathFlows) UnmarshalText(b []byte) error {
 		return errors.New("error unmarshalling text, no comma delimiter found")
 	}
 
-	// first string is always the protocol
-	df.Protocol = Protocol(matches[0])
-
-	matches = matches[1:]
-
 	for _, match := range matches {
+		switch Protocol(match) {
+		case ProtocolARP, ProtocolICMPv4, ProtocolICMPv6,
+			ProtocolIPv4, ProtocolIPv6, ProtocolTCPv4,
+			ProtocolTCPv6, ProtocolUDPv4, ProtocolUDPv6:
+			df.Protocol = Protocol(match)
+			continue
+		}
+
+		// We can safely skip these keywords
+		switch {
+		case match == "eth":
+			continue
+		case match == "unchanged":
+			continue
+		case recircIDRegexp.MatchString(match):
+			continue
+		}
+
 		kv := strings.Split(match, "=")
 		if len(kv) != 2 {
 			return fmt.Errorf("unexpected match format for match %q", match)
@@ -126,6 +146,11 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 	lines := strings.Split(string(b), "\n")
 	for _, line := range lines {
 		if matches, matched := checkMatch(datapathActionsRegexp, line); matched {
+
+			if recircRegexp.MatchString(line) {
+				pt.FlowActions = append(pt.FlowActions, "recirc")
+			}
+
 			// first index is always the left most match, following
 			// are the actual matches
 			pt.DataPathActions = &dataPathActions{
@@ -166,6 +191,20 @@ func (pt *ProtoTrace) UnmarshalText(b []byte) error {
 		}
 
 		if _, matched := checkMatch(traceFlowRegexp, line); matched {
+			continue
+		}
+
+		// We can safely skip these keywords
+		switch {
+		case ctCommentRegexp.MatchString(line):
+			continue
+		case ctThawRegexp.MatchString(line):
+			continue
+		case ctResumeFromRegexp.MatchString(line):
+			continue
+		case ctResumeWithRegexp.MatchString(line):
+			continue
+		case tunNative.MatchString(line):
 			continue
 		}
 

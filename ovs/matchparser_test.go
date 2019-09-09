@@ -23,11 +23,12 @@ import (
 
 func Test_parseMatch(t *testing.T) {
 	var tests = []struct {
-		desc    string
-		s       string
-		final   string
-		m       Match
-		invalid bool
+		desc        string
+		s           string
+		final       string
+		m           Match
+		invalid     bool
+		skipMarshal bool
 	}{
 		{
 			s:       "foo=bar",
@@ -67,6 +68,23 @@ func Test_parseMatch(t *testing.T) {
 				SetState(CTStateTracked),
 				UnsetState(CTStateNew),
 			),
+		},
+		{
+			s:           "ct_state=est|trk",
+			m:           ConnectionTrackingState("+est", "+trk"),
+			skipMarshal: true,
+		},
+		{
+			s:       "ct_state=esttrk",
+			invalid: true,
+		},
+		{
+			s:       "ct_state=est trk",
+			invalid: true,
+		},
+		{
+			s:       "ct_state=est$trk",
+			invalid: true,
 		},
 		{
 			s:       "tcp_flags=+omg",
@@ -474,6 +492,10 @@ func Test_parseMatch(t *testing.T) {
 			if !reflect.DeepEqual(tt.m, m) {
 				t.Fatalf("unexpected matcher:\n- want: %q\n- got: %q",
 					tt.m, m)
+			}
+
+			if tt.skipMarshal {
+				return
 			}
 
 			s, err := m.MarshalText()

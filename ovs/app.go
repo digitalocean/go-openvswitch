@@ -25,9 +25,9 @@ type AppService struct {
 }
 
 // ProtoTrace runs ovs-appctl ofproto/trace on the given bridge and match flow
-// and returns a *ProtoTrace. Also returns err if there is any error parsing the
-// output from ovs-appctl ofproto/trace.
-func (a *AppService) ProtoTrace(bridge string, protocol Protocol, matches []Match) (*ProtoTrace, error) {
+// with the possibility to pass extra parameters like `--ct-next` and returns a *ProtoTrace.
+// Also returns err if there is any error parsing the output from ovs-appctl ofproto/trace.
+func (a *AppService) ProtoTrace(bridge string, protocol Protocol, matches []Match, params ...string) (*ProtoTrace, error) {
 	matchFlows := []string{}
 	if protocol != "" {
 		matchFlows = append(matchFlows, string(protocol))
@@ -44,6 +44,7 @@ func (a *AppService) ProtoTrace(bridge string, protocol Protocol, matches []Matc
 
 	matchArg := strings.Join(matchFlows, ",")
 	args := []string{"ofproto/trace", bridge, matchArg}
+	args = append(args, params...)
 	out, err := a.exec(args...)
 	if err != nil {
 		return nil, err

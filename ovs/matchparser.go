@@ -243,23 +243,26 @@ func parseMACMatch(key string, value string) (Match, error) {
 
 // parseCTState parses a series of connection tracking values into a Match.
 func parseCTState(value string) (Match, error) {
-	if len(value)%4 != 0 {
-		return nil, errors.New("ct_state length must be divisible by 4")
+	// If the format use bar:
+	// "est|trk|dnat" => "+est+trk+dnat"
+	if strings.Contains(value, "|") {
+		value = strings.ReplaceAll(value, "|", "+")
+		value = "+" + value
 	}
 
-	var buf bytes.Buffer
-	var states []string
-
-	for i, r := range value {
-		if i != 0 && i%4 == 0 {
-			states = append(states, buf.String())
-			buf.Reset()
-		}
-
-		_, _ = buf.WriteRune(r)
+	// Add space between flags
+	// "+est+trk+dnat-snat" => "+est +trk +dnat -snat"
+	if strings.Contains(value, "+") || strings.Contains(value, "-") {
+		value = strings.ReplaceAll(value, "+", " +")
+		value = strings.ReplaceAll(value, "-", " -")
+		value = strings.Trim(value, " ")
+	} else {
+		// There are only two valid format for ct_state:
+		// `ct_state=+est+trk` and `ct_state=est|trk`
+		return nil, errors.New("ct_state format is invalid")
 	}
-	states = append(states, buf.String())
 
+	states := strings.Fields(value)
 	return ConnectionTrackingState(states...), nil
 }
 
