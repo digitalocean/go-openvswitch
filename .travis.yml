@@ -1,6 +1,6 @@
 language: go
 go:
-  - 1.11
+  - 1.12
 os:
   - linux
 sudo: required
@@ -8,7 +8,7 @@ before_install:
   - sudo apt update
   - sudo apt install openvswitch-switch
   - sudo ovs-vsctl add-br ovsbr0
-  - go get github.com/golang/lint/golint
+  - go get -u golang.org/x/lint/golint
   - go get -d ./...
 script:
   - ./scripts/licensecheck.sh
