@@ -46,27 +46,10 @@ func TestClientNoFamiliesIsNotExist(t *testing.T) {
 	t.Logf("OK error: %v", err)
 }
 
-func TestClientInvalidFamily(t *testing.T) {
-	conn := genltest.Dial(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		return familyMessages([]string{
-			"ovs_foo",
-		}), nil
-	})
-
-	_, err := newClient(conn)
-	if err == nil {
-		t.Fatalf("expected an error, but none occurred")
-	}
-
-	t.Logf("OK error: %v", err)
-}
-
-func TestClientMissingFamilies(t *testing.T) {
+func TestClientNoKnownFamilies(t *testing.T) {
 	conn := genltest.Dial(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Too few OVS families.
-		return familyMessages([]string{
-			ovsh.DatapathFamily,
-		}), nil
+		return nil, nil
 	})
 
 	_, err := newClient(conn)
@@ -77,14 +60,10 @@ func TestClientMissingFamilies(t *testing.T) {
 	t.Logf("OK error: %v", err)
 }
 
-func TestClientOK(t *testing.T) {
+func TestClientKnownFamilies(t *testing.T) {
 	conn := genltest.Dial(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		return familyMessages([]string{
 			ovsh.DatapathFamily,
-			ovsh.FlowFamily,
-			ovsh.PacketFamily,
-			ovsh.VportFamily,
-			ovsh.MeterFamily,
 		}), nil
 	})
 
