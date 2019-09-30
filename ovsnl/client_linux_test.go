@@ -46,7 +46,22 @@ func TestClientNoFamiliesIsNotExist(t *testing.T) {
 	t.Logf("OK error: %v", err)
 }
 
-func TestClientNoKnownFamilies(t *testing.T) {
+func TestClientUnknownFamilies(t *testing.T) {
+	conn := genltest.Dial(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+		return familyMessages([]string{
+			"ovs_foo",
+		}), nil
+	})
+
+	_, err := newClient(conn)
+	if err == nil {
+		t.Fatalf("expected an error, but none occurred")
+	}
+
+	t.Logf("OK error: %v", err)
+}
+
+func TestClientNoFamilies(t *testing.T) {
 	conn := genltest.Dial(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Too few OVS families.
 		return nil, nil

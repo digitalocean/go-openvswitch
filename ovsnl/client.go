@@ -87,11 +87,11 @@ func (c *Client) init(families []genetlink.Family) error {
 		if !strings.HasPrefix(f.Name, "ovs_") {
 			continue
 		}
-
-		gotf++
+		// Ignore any families that might be unknown.
 		if err := c.initFamily(f); err != nil {
-			return err
+			continue
 		}
+		gotf++
 	}
 
 	// No known families; return error for os.IsNotExist check.
@@ -113,7 +113,7 @@ func (c *Client) initFamily(f genetlink.Family) error {
 		return nil
 	default:
 		// Unknown OVS netlink family, nothing we can do.
-		return nil
+		return fmt.Errorf("unknown OVS generic netlink family: %q", f.Name)
 	}
 }
 
