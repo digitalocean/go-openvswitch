@@ -124,8 +124,11 @@ func (df *DataPathFlows) UnmarshalText(b []byte) error {
 		if err != nil {
 			return err
 		}
-
-		df.Matches = append(df.Matches, m)
+		// The keyword will be skipped if unknown,
+		// don't add a nil value
+		if m != nil {
+			df.Matches = append(df.Matches, m)
+		}
 	}
 
 	return nil

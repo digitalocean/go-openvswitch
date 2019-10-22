@@ -31,6 +31,10 @@ func Test_parseMatch(t *testing.T) {
 		skipMarshal bool
 	}{
 		{
+			s:       "random_token=random_value",
+			invalid: true,
+		},
+		{
 			s:       "foo=bar",
 			invalid: true,
 		},

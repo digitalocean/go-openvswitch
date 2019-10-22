@@ -112,7 +112,7 @@ func parseMatch(key string, value string) (Match, error) {
 		return parseTunID(value)
 	}
 
-	return nil, fmt.Errorf("no match parser found for %s=%s", key, value)
+	return nil, nil
 }
 
 // parseClampInt calls strconv.Atoi on s, and then ensures that s is less than
