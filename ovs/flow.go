@@ -394,7 +394,11 @@ func (f *Flow) UnmarshalText(b []byte) error {
 		if err != nil {
 			return err
 		}
-		f.Matches = append(f.Matches, match)
+		// The keyword will be skipped if unknown,
+		// don't add a nil value
+		if match != nil {
+			f.Matches = append(f.Matches, match)
+		}
 	}
 
 	// Parse all actions from the flow.
