@@ -56,6 +56,17 @@ func (v *VSwitchService) AddPort(bridge string, port string) error {
 	return err
 }
 
+// BridgeToParent returns the parent bridge of a bridge on Open vSwitch.
+// If a bridge has no parent, it returns the bridge from the call.
+func (v *VSwitchService) BridgeToParent(bridge string) (string, error) {
+	out, err := v.exec("br-to-parent", bridge)
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), nil
+}
+
 // DeleteBridge detaches a bridge from Open vSwitch.  The bridge may or may
 // not already exist.
 func (v *VSwitchService) DeleteBridge(bridge string) error {
