@@ -80,30 +80,23 @@ func (c *Client) Close() error {
 
 // init initializes the generic netlink family service of Client.
 func (c *Client) init(families []genetlink.Family) error {
-	// Assume 5 families present.
 	var gotf int
-	const wantf = 5
 
 	for _, f := range families {
 		// Ignore any families without the OVS prefix.
 		if !strings.HasPrefix(f.Name, "ovs_") {
 			continue
 		}
-
-		gotf++
+		// Ignore any families that might be unknown.
 		if err := c.initFamily(f); err != nil {
-			return err
+			continue
 		}
+		gotf++
 	}
 
-	// No families; return error for os.IsNotExist check.
+	// No known families; return error for os.IsNotExist check.
 	if gotf == 0 {
 		return os.ErrNotExist
-	}
-
-	if gotf != wantf {
-		return fmt.Errorf("expected %d OVS generic netlink families, but found %d",
-			wantf, gotf)
 	}
 
 	return nil
@@ -118,12 +111,10 @@ func (c *Client) initFamily(f genetlink.Family) error {
 			c: c,
 		}
 		return nil
-	case ovsh.FlowFamily, ovsh.PacketFamily, ovsh.VportFamily, ovsh.MeterFamily:
-		// TODO(mdlayher): populate.
-		return nil
+	default:
+		// Unknown OVS netlink family, nothing we can do.
+		return fmt.Errorf("unknown OVS generic netlink family: %q", f.Name)
 	}
-
-	return fmt.Errorf("unrecognized OVS generic netlink family: %q", f.Name)
 }
 
 // headerBytes converts an ovsh.Header into a byte slice.
