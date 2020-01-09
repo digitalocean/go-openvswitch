@@ -270,6 +270,8 @@ type InterfaceOptions struct {
 	// tunneled traffic leaving this interface. Optionally it could be set to
 	// "flow" which expects the flow to set tunnel ID.
 	Key string
+
+	Options []string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -305,6 +307,12 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Key != "" {
 		s = append(s, fmt.Sprintf("options:key=%s", i.Key))
+	}
+
+	if len(i.Options) > 0 {
+		for _, option := range i.Options {
+			s = append(s, option)
+		}
 	}
 
 	return s
