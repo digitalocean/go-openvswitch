@@ -1203,6 +1203,18 @@ func TestFlowMatchFlow(t *testing.T) {
 			}
 		})
 	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			want, got := tt.m, tt.f.MatchFlowStrict()
+			wantStrict := &(*want)
+			wantStrict.Strict = true
+			wantStrict.Priority = tt.f.Priority
+			if !reflect.DeepEqual(wantStrict, got) {
+				t.Fatalf("unexpected MatchFlowStrict:\n- want: %#v\n-  got: %#v",
+					wantStrict, got)
+			}
+		})
+	}
 }
 
 // flowsEqual determines if two possible Flows are equal.
