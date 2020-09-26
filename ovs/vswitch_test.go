@@ -74,6 +74,33 @@ func TestClientVSwitchAddPortOK(t *testing.T) {
 	}
 }
 
+func TestClientVSwitchAddPortTaggedOK(t *testing.T) {
+	bridge := "br0"
+	port := "bond0"
+	vlanid := "10"
+
+	// Apply Timeout option to verify arguments
+	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+		// Verify correct command and arguments passed, including option flags
+		if want, got := "ovs-vsctl", cmd; want != got {
+			t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		wantArgs := []string{"--timeout=1", "--may-exist", "add-port", string(bridge), string(port), fmt.Sprintf("tag=%s", vlanid)}
+		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		return nil, nil
+	})
+
+	if err := c.VSwitch.AddPortTagged(bridge, port, vlanid); err != nil {
+		t.Fatalf("unexpected error for Client.VSwitch.AddPort: %v", err)
+	}
+}
+
 func TestClientVSwitchDeleteBridgeOK(t *testing.T) {
 	bridge := "br0"
 
