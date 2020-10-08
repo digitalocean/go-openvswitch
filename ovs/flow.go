@@ -79,6 +79,8 @@ type LearnedFlow struct {
 
 	DeleteLearned  bool
 	FinHardTimeout int
+	HardTimeout    int
+	Limit          int
 }
 
 var _ error = &FlowError{}
@@ -123,6 +125,8 @@ const (
 	// Variables used in LearnedFlows only.
 	deleteLearned  = "delete_learned"
 	finHardTimeout = "fin_hard_timeout"
+	hardTimeout    = "hard_timeout"
+	limit          = "limit"
 
 	portLOCAL = "LOCAL"
 )
@@ -262,6 +266,11 @@ func (f *LearnedFlow) MarshalText() ([]byte, error) {
 	b = append(b, ","+finHardTimeout+"="...)
 	b = strconv.AppendInt(b, int64(f.FinHardTimeout), 10)
 
+	b = append(b, ","+hardTimeout+"="...)
+	b = strconv.AppendInt(b, int64(f.HardTimeout), 10)
+
+	b = append(b, ","+limit+"="...)
+	b = strconv.AppendInt(b, int64(f.Limit), 10)
 	if f.DeleteLearned {
 		b = append(b, ","+deleteLearned...)
 	}
