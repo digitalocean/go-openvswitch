@@ -269,8 +269,13 @@ func (f *LearnedFlow) MarshalText() ([]byte, error) {
 	b = append(b, ","+hardTimeout+"="...)
 	b = strconv.AppendInt(b, int64(f.HardTimeout), 10)
 
-	b = append(b, ","+limit+"="...)
-	b = strconv.AppendInt(b, int64(f.Limit), 10)
+	if f.Limit > 0 {
+		// On older version of OpenVSwitch, the limit option doesn't exist.
+		// Make sure we don't use it if the value is not set.
+		b = append(b, ","+limit+"="...)
+		b = strconv.AppendInt(b, int64(f.Limit), 10)
+	}
+
 	if f.DeleteLearned {
 		b = append(b, ","+deleteLearned...)
 	}

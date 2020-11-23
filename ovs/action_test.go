@@ -682,7 +682,7 @@ func TestLearn(t *testing.T) {
 				Matches:        []Match{DataLinkType(0x800)},
 				Actions:        []Action{OutputField("in_port"), Load("2", "tp_dst")},
 			}),
-			action: `learn(priority=0,dl_type=0x0800,table=0,idle_timeout=0,fin_hard_timeout=10,hard_timeout=0,limit=0,delete_learned,output:in_port,load:2->tp_dst)`,
+			action: `learn(priority=0,dl_type=0x0800,table=0,idle_timeout=0,fin_hard_timeout=10,hard_timeout=0,delete_learned,output:in_port,load:2->tp_dst)`,
 		},
 		{
 			desc: "learn ok",

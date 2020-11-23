@@ -352,7 +352,7 @@ func TestFlowMarshalText(t *testing.T) {
 					Output(4),
 				},
 			},
-			s: `priority=5000,tcp,in_port=3,nw_dst=169.254.169.254,tp_dst=80,table=0,idle_timeout=0,actions=learn(priority=5000,in_port=4,dl_type=0x0800,nw_proto=6,NXM_OF_IP_SRC[]=NXM_OF_IP_DST[],NXM_OF_TCP_SRC[]=NXM_OF_TCP_DST[],nw_dst=1.2.3.4,tp_dst=567,table=0,idle_timeout=60,fin_hard_timeout=1,hard_timeout=0,limit=0,delete_learned,load:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],load:NXM_OF_IP_SRC[]->NXM_OF_IP_DST[],load:NXM_OF_TCP_SRC[]->NXM_OF_TCP_DST[],output:NXM_OF_IN_PORT[]),mod_nw_src:1.2.3.4,mod_tp_src:567,output:4`,
+			s: `priority=5000,tcp,in_port=3,nw_dst=169.254.169.254,tp_dst=80,table=0,idle_timeout=0,actions=learn(priority=5000,in_port=4,dl_type=0x0800,nw_proto=6,NXM_OF_IP_SRC[]=NXM_OF_IP_DST[],NXM_OF_TCP_SRC[]=NXM_OF_TCP_DST[],nw_dst=1.2.3.4,tp_dst=567,table=0,idle_timeout=60,fin_hard_timeout=1,hard_timeout=0,delete_learned,load:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],load:NXM_OF_IP_SRC[]->NXM_OF_IP_DST[],load:NXM_OF_TCP_SRC[]->NXM_OF_TCP_DST[],output:NXM_OF_IN_PORT[]),mod_nw_src:1.2.3.4,mod_tp_src:567,output:4`,
 		},
 		{
 			desc: "Flow with LearnedFlow in Learn action with hard_timeout and limit options",
