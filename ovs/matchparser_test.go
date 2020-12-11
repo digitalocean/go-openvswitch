@@ -74,6 +74,11 @@ func Test_parseMatch(t *testing.T) {
 			),
 		},
 		{
+			s:           "ct_state=trk",
+			m:           ConnectionTrackingState("+trk"),
+			skipMarshal: true,
+		},
+		{
 			s:           "ct_state=est|trk",
 			m:           ConnectionTrackingState("+est", "+trk"),
 			skipMarshal: true,
