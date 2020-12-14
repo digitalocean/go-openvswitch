@@ -257,9 +257,9 @@ func parseCTState(value string) (Match, error) {
 		value = strings.ReplaceAll(value, "-", " -")
 		value = strings.Trim(value, " ")
 	} else {
-		// There are only two valid format for ct_state:
-		// `ct_state=+est+trk` and `ct_state=est|trk`
-		return nil, errors.New("ct_state format is invalid")
+		// Assume only one state is specified: "ct_state=trk"
+		// "trk" => "+trk"
+		value = "+" + value
 	}
 
 	states := strings.Fields(value)
