@@ -228,6 +228,17 @@ func (v *VSwitchSetService) Interface(ifi string, options InterfaceOptions) erro
 	return err
 }
 
+// VxlanInterface  sets vxlan configuration
+func (v *VSwitchSetService) VxlanInterface(ifi string, options InterfaceOptions) error {
+	// Prepend command line arguments before expanding options slice
+	// and appending it
+	args := []string{"--may-exist", "add-port", options.Bridge, ifi, "--", "set", "interface", ifi}
+	args = append(args, options.slice()...)
+
+	_, err := v.v.exec(args...)
+	return err
+}
+
 // An InterfaceOptions struct enables configuration of an Interface.
 type InterfaceOptions struct {
 	// Type specifies the Open vSwitch interface type.
@@ -270,6 +281,14 @@ type InterfaceOptions struct {
 	// tunneled traffic leaving this interface. Optionally it could be set to
 	// "flow" which expects the flow to set tunnel ID.
 	Key string
+
+	// LocalIP can be populated when the interface is a tunnel interface type
+	// for example "stt" or "vxlan". It specifies the LocalIP IP address with which to
+	// form tunnels when traffic is sent to this port.
+	LocalIP string
+
+	// Bridge to be connected if vxlan
+	Bridge string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -307,5 +326,8 @@ func (i InterfaceOptions) slice() []string {
 		s = append(s, fmt.Sprintf("options:key=%s", i.Key))
 	}
 
+	if i.LocalIP != "" {
+		s = append(s, fmt.Sprintf("options:local_ip=%s", i.Key))
+	}
 	return s
 }
