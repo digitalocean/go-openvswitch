@@ -327,7 +327,7 @@ func (i InterfaceOptions) slice() []string {
 	}
 
 	if i.LocalIP != "" {
-		s = append(s, fmt.Sprintf("options:local_ip=%s", i.Key))
+		s = append(s, fmt.Sprintf("options:local_ip=%s", i.LocalIP))
 	}
 	return s
 }
