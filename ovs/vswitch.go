@@ -236,6 +236,10 @@ type InterfaceOptions struct {
 	// Peer specifies an interface to peer with when creating a patch interface.
 	Peer string
 
+	// MTURequest specifies the maximum transmission unit associated with an
+	// interface.
+	MTURequest int
+
 	// Ingress Policing
 	//
 	// These settings control ingress policing for packets received on this
@@ -283,6 +287,10 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Peer != "" {
 		s = append(s, fmt.Sprintf("options:peer=%s", i.Peer))
+	}
+
+	if i.MTURequest > 0 {
+		s = append(s, fmt.Sprintf("mtu_request=%d", i.MTURequest))
 	}
 
 	if i.IngressRatePolicing == DefaultIngressRatePolicing {
