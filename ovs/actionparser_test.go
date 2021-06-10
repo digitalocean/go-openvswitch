@@ -270,6 +270,18 @@ func Test_parseAction(t *testing.T) {
 			a: Load("0x2", "NXM_OF_ARP_OP[]"),
 		},
 		{
+			s:       "move:->NXM_OF_ARP_OP[]",
+			invalid: true,
+		},
+		{
+			s:       "move:NXM_OF_ARP_SPA[]->",
+			invalid: true,
+		},
+		{
+			s: "move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[]",
+			a: Move("move:NXM_OF_ARP_SPA[]", "NXM_OF_ARP_TPA[]"),
+		},
+		{
 			s:       "set_field:->arp_spa",
 			invalid: true,
 		},
