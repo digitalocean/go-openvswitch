@@ -160,6 +160,10 @@ var (
 	// with its parameters.
 	loadRe = regexp.MustCompile(`load:(\S+)->(\S+)`)
 
+	// moveRe is the regex used to match the move action
+	// with its parameters.
+	moveRe = regexp.MustCompile(`move:(\S+)->(\S+)`)
+
 	// setFieldRe is the regex used to match the set_field action
 	// with its parameters.
 	setFieldRe = regexp.MustCompile(`set_field:(\S+)->(\S+)`)
@@ -367,6 +371,14 @@ func parseAction(s string) (Action, error) {
 		//  - value
 		//  - field
 		return Load(ss[0][1], ss[0][2]), nil
+	}
+
+	if ss := moveRe.FindAllStringSubmatch(s, 2); len(ss) > 0 && len(ss[0]) == 3 {
+		// Results are:
+		//  - full string
+		//  - value
+		//  - field
+		return Move(ss[0][1], ss[0][2]), nil
 	}
 
 	if ss := setFieldRe.FindAllStringSubmatch(s, 2); len(ss) > 0 && len(ss[0]) == 3 {
