@@ -19,6 +19,12 @@ import (
 	"testing"
 )
 
+const (
+	validTest = iota
+	handleError
+	unknownCommand
+)
+
 // MockOvsCLI is mocking the "ovs-dpctl (Open vSwitch) 2.10.7" version
 type MockOvsCLI struct {
 	Version uint8
@@ -46,8 +52,14 @@ func (cli *MockOvsCLI) Exec(args ...string) ([]byte, error) {
 		out := "default limit=0\nzone=2,limit=1000000,count=0\nzone=3,limit=1000000,count=0"
 		return []byte(out), nil
 	case "ct-set-limits":
+		if cli.Version < 10 {
+			return []byte{}, errors.New("ovs-dpctl: unknown command 'ct-get-limits'; use --help for help")
+		}
 		return []byte{}, nil
 	case "ct-del-limits":
+		if cli.Version < 10 {
+			return []byte{}, errors.New("ovs-dpctl: unknown command 'ct-get-limits'; use --help for help")
+		}
 		return []byte{}, nil
 	default:
 		return []byte{}, nil
@@ -198,14 +210,14 @@ func TestGetCTLimits(t *testing.T) {
 			desc: "Test invalid ovs-dpctl version ",
 			dp: &DataPathService{
 				CLI: &MockOvsCLI{
-					Version: 9,
+					Version: unknownCommand,
 				},
 			},
 			dpName:   "ovs-system",
 			zones:    []uint64{2, 3},
 			want:     nil,
 			err:      "ovs-dpctl: unknown command 'ct-get-limits'; use --help for help",
-			testCase: 9,
+			testCase: unknownCommand,
 		},
 		{
 			desc: "Test valid ovs-dpctl version ",
@@ -218,7 +230,7 @@ func TestGetCTLimits(t *testing.T) {
 			zones:    []uint64{2, 3},
 			want:     out,
 			err:      "",
-			testCase: 10,
+			testCase: validTest,
 		},
 		{
 			desc: "Test valid ovs-dpctl ct-get-limits",
@@ -231,18 +243,18 @@ func TestGetCTLimits(t *testing.T) {
 			zones:    []uint64{},
 			want:     out,
 			err:      "datapath name argument is mandatory",
-			testCase: 11,
+			testCase: handleError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			results, err := tt.dp.GetCTLimits(tt.dpName, tt.zones)
 			switch tt.testCase {
-			case 9:
+			case unknownCommand:
 				if err.Error() != tt.err {
 					t.Errorf("getting an error while trying to get conntrack limits %q", err.Error())
 				}
-			case 10:
+			case validTest:
 				if tt.want.defaultLimit["default"] != results.defaultLimit["default"] {
 					t.Errorf("mismatched values, want %q  but got %q", tt.want.defaultLimit["default"], results.defaultLimit["default"])
 				}
@@ -251,7 +263,7 @@ func TestGetCTLimits(t *testing.T) {
 						t.Errorf("mismatched values, want %q  but got %q", tt.want.zones[i]["zone"], z["zone"])
 					}
 				}
-			case 11:
+			case handleError:
 				if err != nil && err.Error() != tt.err {
 					t.Errorf(err.Error())
 				}
@@ -310,7 +322,7 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 			zones:    []uint64{2, 3},
 			want:     out,
 			err:      "",
-			testCase: 10,
+			testCase: validTest,
 		},
 		{
 			desc:     "Test valid ovs-dpctl ct-get-limits system@ovs-system",
@@ -319,7 +331,7 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 			zones:    []uint64{},
 			want:     outTest2,
 			err:      "",
-			testCase: 10,
+			testCase: validTest,
 		},
 		{
 			desc:     "Test valid ovs-dpctl ct-get-limits",
@@ -328,14 +340,14 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 			zones:    []uint64{},
 			want:     out,
 			err:      "datapath name argument is mandatory",
-			testCase: 11,
+			testCase: handleError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			results, err := tt.dp.GetCTLimits(tt.dpName, tt.zones)
 			switch tt.testCase {
-			case 10:
+			case validTest:
 				if tt.want.defaultLimit["default"] != results.defaultLimit["default"] {
 					t.Errorf("mismatched values, want %q  but got %q", tt.want.defaultLimit["default"], results.defaultLimit["default"])
 				}
@@ -344,7 +356,7 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 						t.Errorf("mismatched values, want %q  but got %q", tt.want.zones[i]["zone"], z["zone"])
 					}
 				}
-			case 11:
+			case handleError:
 				if err != nil && err.Error() != tt.err {
 					t.Errorf(err.Error())
 				}
@@ -528,12 +540,12 @@ func TestSetCTLimitsWithBinary(t *testing.T) {
 
 func TestDelCTLimits(t *testing.T) {
 	var tests = []struct {
-		desc   string
-		dp     *DataPathService
-		zones  []uint64
-		dpName string
-		err    string
-		res    int
+		desc     string
+		dp       *DataPathService
+		zones    []uint64
+		dpName   string
+		err      string
+		testCase uint8
 	}{
 		{
 			desc: "Test del limit with valid argument",
@@ -542,9 +554,9 @@ func TestDelCTLimits(t *testing.T) {
 					Version: 10,
 				},
 			},
-			zones:  []uint64{4, 3},
-			dpName: "system@ovs-system",
-			res:    0,
+			zones:    []uint64{4, 3},
+			dpName:   "system@ovs-system",
+			testCase: validTest,
 		},
 		{
 			desc: "Test del limit with datapath missing",
@@ -553,30 +565,30 @@ func TestDelCTLimits(t *testing.T) {
 					Version: 10,
 				},
 			},
-			zones:  []uint64{4, 3},
-			dpName: "",
-			err:    "datapath name is missing",
-			res:    1,
+			zones:    []uint64{4, 3},
+			dpName:   "",
+			err:      "datapath name is missing",
+			testCase: handleError,
 		},
 		{
-			desc:   "Test del limit with empty paramaters",
-			dp:     NewDataPathService(),
-			zones:  []uint64{},
-			dpName: "",
-			err:    "datapath name is missing",
-			res:    1,
+			desc:     "Test del limit with empty paramaters",
+			dp:       NewDataPathService(),
+			zones:    []uint64{},
+			dpName:   "",
+			err:      "datapath name is missing",
+			testCase: handleError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			res, err := tt.dp.DelCTLimits(tt.dpName, tt.zones)
-			switch tt.res {
-			case 0:
+			switch tt.testCase {
+			case validTest:
 				if err != nil {
 					t.Errorf("got %q and %q", res, err.Error())
 				}
 
-			case 1:
+			case handleError:
 				if err.Error() != tt.err {
 					t.Errorf("got %q and %q", res, err.Error())
 				}
@@ -594,47 +606,47 @@ func TestDelCTLimitsWithBinary(t *testing.T) {
 	}
 
 	var tests = []struct {
-		desc   string
-		dp     *DataPathService
-		zones  []uint64
-		dpName string
-		err    string
-		res    int
+		desc     string
+		dp       *DataPathService
+		zones    []uint64
+		dpName   string
+		err      string
+		testCase uint8
 	}{
 		{
-			desc:   "Test del limit with valid argument",
-			dp:     NewDataPathService(),
-			zones:  []uint64{4, 3},
-			dpName: "system@ovs-system",
-			res:    0,
+			desc:     "Test del limit with valid argument",
+			dp:       NewDataPathService(),
+			zones:    []uint64{4, 3},
+			dpName:   "system@ovs-system",
+			testCase: validTest,
 		},
 		{
-			desc:   "Test del limit with datapath missing",
-			dp:     NewDataPathService(),
-			zones:  []uint64{4, 3},
-			dpName: "",
-			err:    "datapath name is missing",
-			res:    1,
+			desc:     "Test del limit with datapath missing",
+			dp:       NewDataPathService(),
+			zones:    []uint64{4, 3},
+			dpName:   "",
+			err:      "datapath name is missing",
+			testCase: handleError,
 		},
 		{
-			desc:   "Test del limit with empty paramaters",
-			dp:     NewDataPathService(),
-			zones:  []uint64{},
-			dpName: "",
-			err:    "datapath name is missing",
-			res:    1,
+			desc:     "Test del limit with empty paramaters",
+			dp:       NewDataPathService(),
+			zones:    []uint64{},
+			dpName:   "",
+			err:      "datapath name is missing",
+			testCase: handleError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			res, err := tt.dp.DelCTLimits(tt.dpName, tt.zones)
-			switch tt.res {
-			case 0:
+			switch tt.testCase {
+			case validTest:
 				if err != nil {
 					t.Errorf("got %q and %q", res, err.Error())
 				}
 
-			case 1:
+			case handleError:
 				if err.Error() != tt.err {
 					t.Errorf("got %q and %q", res, err.Error())
 				}
