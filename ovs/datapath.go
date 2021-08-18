@@ -16,10 +16,18 @@ package ovs
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+)
+
+var (
+	errMissingDataPathName  = errors.New("datapath name argument is mandatory")
+	errUninitializedClient  = errors.New("client unitialized")
+	errMissingMandatoryZone = errors.New("at least 1 zone is mandatory")
+	errWrongArgumentNumber  = errors.New("missing or too much arguments to setup ct limits")
+	errWrongDefaultArgument = errors.New("wrong argument while setting default ct limits")
+	errWrongZoneArgument    = errors.New("wrong argument while setting zone ct limits")
 )
 
 // Zone defines the type used to store a zone as it is returned
@@ -84,10 +92,10 @@ type CLI interface {
 	Exec(args ...string) ([]byte, error)
 }
 
-// DataPathService defines the conrete type used for DataPath operations
+// DataPathService defines the concrete type used for DataPath operations
 // supported by the ovs-dpctl command
 type DataPathService struct {
-	// We define here a CLI interface making easier to mock pvs-dpctl command
+	// We define here a CLI interface making easier to mock ovs-dpctl command
 	// as in github.com/digitalocean/go-openvswitch/ovs/datapath_test.go
 	CLI
 }
@@ -133,7 +141,7 @@ func (dp *DataPathService) AddDataPath(dpName string) ([]byte, error) {
 	return dp.CLI.Exec(args...)
 }
 
-// DelDataPath create a Datapath with the command 'ovs-dpctl add-dp <DP>'
+// DelDataPath create a Datapath with the command 'ovs-dpctl del-dp <DP>'
 // It takes one argument, the required DataPath Name and returns an error
 // if it failed
 func (dp *DataPathService) DelDataPath(dpName string) ([]byte, error) {
@@ -148,7 +156,7 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 	// Start by building the args
 	args := []string{"ct-get-limits"}
 	if dpName == "" {
-		return nil, errors.New("datapath name argument is mandatory")
+		return nil, errMissingDataPathName
 	}
 
 	args = append(args, dpName)
@@ -170,7 +178,6 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 
 	r, err := regexp.Compile(`default`)
 	if err != nil {
-		fmt.Println(err.Error())
 		return nil, err
 	}
 
@@ -212,7 +219,7 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 func (dp *DataPathService) SetCTLimits(dpName string, zone map[string]uint64) (string, error) {
 	// Sanitize the input
 	if dpName == "" {
-		return "", errors.New("datapath name is required")
+		return "", errMissingDataPathName
 	}
 	argsStr, err := ctSetLimitsArgsToString(zone)
 	if err != nil {
@@ -230,10 +237,10 @@ func (dp *DataPathService) SetCTLimits(dpName string, zone map[string]uint64) (s
 // sudo ovs-dpctl  ct-del-limits system@ovs-system  zone=40,4
 func (dp *DataPathService) DelCTLimits(dpName string, zones []uint64) (string, error) {
 	if dpName == "" {
-		return "", errors.New("datapath name is missing")
+		return "", errMissingDataPathName
 	}
 	if len(zones) < 1 {
-		return "", errors.New("at least 1 zone is mandatory")
+		return "", errMissingMandatoryZone
 	}
 
 	var firstZone uint64
@@ -268,18 +275,18 @@ func ctSetLimitsArgsToString(zone map[string]uint64) (string, error) {
 
 	// We need at most 2 arguments and at least 1
 	if len(args) == 0 || len(args) > 2 {
-		return "", errors.New("missing or too much arguments to setup ct limits")
+		return "", errWrongArgumentNumber
 
 	}
 	// if we setup the default global setting we only need a single parameter
 	// like "default=100000" and nothing else
 	if defaultSetup && len(args) != 1 {
-		return "", errors.New("wrong argument while setting default ct limits")
+		return "", errWrongDefaultArgument
 	}
 	// if we setup a limit for dedicated zone we need 2 params like
 	// "zone=3" and "limit=50000"
 	if !defaultSetup && len(args) != 2 {
-		return "", errors.New("wrong argument while setting zone ct limits")
+		return "", errWrongZoneArgument
 	}
 
 	var argsStr string
@@ -328,7 +335,7 @@ type OvsCLI struct {
 // Exec executes 'ovs-dpctl' + args passed in argument
 func (cli *OvsCLI) Exec(args ...string) ([]byte, error) {
 	if cli.c == nil {
-		return nil, errors.New("client unitialized")
+		return nil, errUninitializedClient
 	}
 
 	return cli.c.exec("ovs-dpctl", args...)
