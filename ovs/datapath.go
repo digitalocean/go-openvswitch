@@ -1,4 +1,4 @@
-// Copyright 2017 DigitalOcean.
+// Copyright 2021 DigitalOcean.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,9 +62,9 @@ type DataPathReader interface {
 // for the ovs DataPaths
 type DataPathWriter interface {
 	// AddDataPath is the method used to add a datapath to the switch
-	AddDataPath(string) ([]byte, error)
+	AddDataPath(string) error
 	// DelDataPath is the method used to remove a datapath from the switch
-	DelDataPath(string) ([]string, error)
+	DelDataPath(string) error
 }
 
 // ConnTrackReader is the interface defining the read operations
@@ -112,8 +112,7 @@ func NewDataPathService() *DataPathService {
 
 // Version retruns the ovs-dptcl --version currently installed
 func (dp *DataPathService) Version() (string, error) {
-	args := []string{"--version"}
-	result, err := dp.CLI.Exec(args...)
+	result, err := dp.CLI.Exec("--version")
 	if err != nil {
 		return "", err
 	}
@@ -123,8 +122,7 @@ func (dp *DataPathService) Version() (string, error) {
 
 // GetDataPaths returns the output of the command 'ovs-dpctl dump-dps'
 func (dp *DataPathService) GetDataPaths() ([]string, error) {
-	args := []string{"dump-dps"}
-	result, err := dp.CLI.Exec(args...)
+	result, err := dp.CLI.Exec("dump-dps")
 	if err != nil {
 		return nil, err
 	}
@@ -135,31 +133,29 @@ func (dp *DataPathService) GetDataPaths() ([]string, error) {
 // AddDataPath create a Datapath with the command 'ovs-dpctl add-dp <DP>'
 // It takes one argument, the required DataPath Name and returns an error
 // if it failed
-func (dp *DataPathService) AddDataPath(dpName string) ([]byte, error) {
-	args := []string{"add-dp", dpName}
-
-	return dp.CLI.Exec(args...)
+func (dp *DataPathService) AddDataPath(dpName string) error {
+	_, err := dp.CLI.Exec("add-dp", dpName)
+	return err
 }
 
 // DelDataPath create a Datapath with the command 'ovs-dpctl del-dp <DP>'
 // It takes one argument, the required DataPath Name and returns an error
 // if it failed
-func (dp *DataPathService) DelDataPath(dpName string) ([]byte, error) {
-	args := []string{"del-dp", dpName}
+func (dp *DataPathService) DelDataPath(dpName string) error {
+	_, err := dp.CLI.Exec("del-dp", dpName)
 
-	return dp.CLI.Exec(args...)
+	return err
 }
 
 // GetCTLimits returns the conntrack limits  for a given datapath
 // equivalent to running: 'sudo ovs-dpctl ct-get-limits <datapath_name> zone=<#1>,<#2>,...'
 func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrackOutput, error) {
 	// Start by building the args
-	args := []string{"ct-get-limits"}
 	if dpName == "" {
 		return nil, errMissingDataPathName
 	}
 
-	args = append(args, dpName)
+	args := []string{"ct-get-limits", dpName}
 
 	zoneParam := getZoneString(zones)
 	if zoneParam != "" {
