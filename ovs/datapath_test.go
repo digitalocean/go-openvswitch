@@ -1,4 +1,4 @@
-// Copyright 2017 DigitalOcean.
+// Copyright 2021 DigitalOcean.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,7 +144,7 @@ func TestAddDataPath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			_, err := tt.dp.AddDataPath(tt.dpName)
+			err := tt.dp.AddDataPath(tt.dpName)
 			if err != nil {
 				t.Errorf("getting an error while trying to get version %q", err.Error())
 			}
@@ -170,7 +170,7 @@ func TestDelDataPath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			_, err := tt.dp.DelDataPath(tt.dpName)
+			err := tt.dp.DelDataPath(tt.dpName)
 			if err != nil {
 				t.Errorf("getting an error while trying to get version %q", err.Error())
 			}
