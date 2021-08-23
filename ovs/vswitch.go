@@ -275,8 +275,18 @@ type InterfaceOptions struct {
 	// "flow" which expects the flow to set tunnel ID.
 	Key string
 
-	// Flags indicat whether allowed fragments packets in IP Header.
+	// Specifies the usage of the Don't Fragment flag (DF) bit in outgoing packets
+	// with IPv4 headers. The value inherit causes the bit to be copied from
+	// the original IP header. The values unset and set cause the bit to be always unset
+	// or always set, respectively. By default, the bit is not set.
 	DfDefault string
+
+	// Specifies the source IP address to use in outgoing packets.
+	LocalIP string
+
+	// Specifies the UDP destination port to communicate to the remote
+	// VXLAN tunnel endpoint.
+	DstPort uint32
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -320,6 +330,14 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.DfDefault != "" {
 		s = append(s, fmt.Sprintf("options:df_default=%s", i.DfDefault))
+	}
+
+	if i.LocalIP != "" {
+		s = append(s, fmt.Sprintf("options:local_ip=%s", i.LocalIP))
+	}
+
+	if i.DstPort > 0 {
+		s = append(s, fmt.Sprintf("options:dst_port=%d", i.DstPort))
 	}
 
 	return s
