@@ -22,32 +22,32 @@ type Header struct {
 }
 
 type DPStats struct {
-	Hit	uint64
-	Missed	uint64
-	Lost	uint64
-	Flows	uint64
+	Hit    uint64
+	Missed uint64
+	Lost   uint64
+	Flows  uint64
 }
 
 type DPMegaflowStats struct {
-	Mask_hit	uint64
-	Masks		uint32
-	Pad0		uint32
-	Pad1		uint64
-	Pad2		uint64
+	Mask_hit uint64
+	Masks    uint32
+	Pad0     uint32
+	Pad1     uint64
+	Pad2     uint64
 }
 
 type VportStats struct {
-	Rx_packets	uint64
-	Tx_packets	uint64
-	Rx_bytes	uint64
-	Tx_bytes	uint64
-	Rx_errors	uint64
-	Tx_errors	uint64
-	Rx_dropped	uint64
-	Tx_dropped	uint64
+	Rx_packets uint64
+	Tx_packets uint64
+	Rx_bytes   uint64
+	Tx_bytes   uint64
+	Rx_errors  uint64
+	Tx_errors  uint64
+	Rx_dropped uint64
+	Tx_dropped uint64
 }
 
 type FlowStats struct {
-	Packets	uint64
-	Bytes	uint64
+	Packets uint64
+	Bytes   uint64
 }
