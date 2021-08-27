@@ -30,7 +30,7 @@ func TestClientIntegration(t *testing.T) {
 	defer c.Close()
 
 	// Cancel RPCs if they take too long.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	t.Run("echo", func(t *testing.T) {
@@ -55,7 +55,6 @@ func TestClientIntegrationConcurrent(t *testing.T) {
 	doneWG.Add(n)
 
 	// Block all goroutines until they're done spinning up.
-	//sigC := make(chan struct{}, 0)
 	sigC := make(chan struct{})
 
 	for i := 0; i < n; i++ {
