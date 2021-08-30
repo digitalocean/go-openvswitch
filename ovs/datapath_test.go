@@ -567,7 +567,7 @@ func TestDelCTLimits(t *testing.T) {
 			},
 			zones:    []uint64{4, 3},
 			dpName:   "",
-			err:      "datapath name is missing",
+			err:      "datapath name argument is mandatory",
 			testCase: handleError,
 		},
 		{
@@ -575,7 +575,7 @@ func TestDelCTLimits(t *testing.T) {
 			dp:       NewDataPathService(),
 			zones:    []uint64{},
 			dpName:   "",
-			err:      "datapath name is missing",
+			err:      "datapath name argument is mandatory",
 			testCase: handleError,
 		},
 	}
@@ -625,7 +625,7 @@ func TestDelCTLimitsWithBinary(t *testing.T) {
 			dp:       NewDataPathService(),
 			zones:    []uint64{4, 3},
 			dpName:   "",
-			err:      "datapath name is missing",
+			err:      "datapath name argument is mandatory",
 			testCase: handleError,
 		},
 		{
@@ -633,7 +633,7 @@ func TestDelCTLimitsWithBinary(t *testing.T) {
 			dp:       NewDataPathService(),
 			zones:    []uint64{},
 			dpName:   "",
-			err:      "datapath name is missing",
+			err:      "datapath name argument is mandatory",
 			testCase: handleError,
 		},
 	}
