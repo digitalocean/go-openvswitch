@@ -244,7 +244,7 @@ func New(options ...OptionFunc) *Client {
 	c.App = app
 
 	c.DataPath = &DataPathService{
-		CLI: &OvsCLI{
+		CLI: &DpCLI{
 			c: c,
 		},
 	}

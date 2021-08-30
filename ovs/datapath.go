@@ -104,7 +104,7 @@ type DataPathService struct {
 // sudo is defined as a default option.
 func NewDataPathService() *DataPathService {
 	return &DataPathService{
-		CLI: &OvsCLI{
+		CLI: &DpCLI{
 			c: New(Sudo()),
 		},
 	}
@@ -321,15 +321,15 @@ func getZoneString(z []uint64) string {
 	return sb.String()
 }
 
-// OvsCLI implements the CLI interface by invoking the Client exec
+// DpCLI implements the CLI interface by invoking the Client exec
 // method.
-type OvsCLI struct {
+type DpCLI struct {
 	// Wrapped client for ovs-dpctl
 	c *Client
 }
 
 // Exec executes 'ovs-dpctl' + args passed in argument
-func (cli *OvsCLI) Exec(args ...string) ([]byte, error) {
+func (cli *DpCLI) Exec(args ...string) ([]byte, error) {
 	if cli.c == nil {
 		return nil, errUninitializedClient
 	}
