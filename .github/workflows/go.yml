@@ -1,0 +1,65 @@
+name: Go
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.17
+
+    - name: OVS setup
+      run: |
+        sudo apt install openvswitch-switch
+        sudo ovs-vsctl add-br ovsbr0
+        
+    - name: Check and test
+      run: |
+        export GOPATH=/home/runner/work
+        export PATH=$PATH:$GOPATH/bin
+        mkdir $GOPATH/src $GOPATH/pkg $GOPATH/bin
+        go install honnef.co/go/tools/cmd/staticcheck@latest
+        NEW=$GOPATH/src/github.com/digitalocean/go-openvswitch
+        mkdir -p $NEW
+        cp -r ./* $NEW
+        cd $NEW
+        go mod download
+        go get golang.org/x/lint/golint
+        go get honnef.co/go/tools/cmd/staticcheck
+        go get -d ./...
+        echo "=========START LICENSE CHECK============"
+        ./scripts/licensecheck.sh
+        echo "=========START BUILD============"
+        go build -v -tags=gofuzz ./...
+        echo "=========START VET============"
+        go vet ./...
+        echo "=========START GO FMT CHECK============"
+        ./scripts/gofmt.sh
+        echo "=========START GO LINT CHECK============"
+        ./scripts/golint.sh
+        echo "=========START STATICCHECK============"
+        staticcheck ./...
+        echo "=========START LINT============"
+        golint -set_exit_status ./cmd/... ./internal/...
+        echo "=========START TESTS IN OVS============"
+        go test -v -race ./ovs/
+        echo "=========START TESTS IN OVSDB============"
+        go test -v -race ./ovsdb/
+        go test -c -race ./ovsdb
+        echo "=========START TESTS IN OVSNL============"
+        go test -v -race ./ovsnl/
+        echo "=========START OVSDB.TEST============"
+        sudo ./ovsdb.test -test.v
+        echo "=========START SECURITY SCANNING============"
+        go install github.com/praetorian-inc/gokart@latest
+        gokart scan

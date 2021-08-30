@@ -55,7 +55,7 @@ func TestClientIntegrationConcurrent(t *testing.T) {
 	doneWG.Add(n)
 
 	// Block all goroutines until they're done spinning up.
-	sigC := make(chan struct{}, 0)
+	sigC := make(chan struct{})
 
 	for i := 0; i < n; i++ {
 		go func(c *ovsdb.Client) {
@@ -87,7 +87,7 @@ func testClientDatabases(ctx context.Context, t *testing.T, c *ovsdb.Client) {
 		t.Fatalf("failed to list databases: %v", err)
 	}
 
-	want := []string{"Open_vSwitch"}
+	want := []string{"Open_vSwitch", "_Server"}
 
 	if diff := cmp.Diff(want, dbs); diff != "" {
 		t.Fatalf("unexpected databases (-want +got):\n%s", diff)

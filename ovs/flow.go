@@ -34,7 +34,6 @@ var (
 	errInvalidActions        = errors.New("invalid actions for Flow")
 	errNoActions             = errors.New("no actions defined for Flow")
 	errNotEnoughElements     = errors.New("not enough elements for valid Flow")
-	errPriorityNotFirst      = errors.New("priority field is not first in Flow")
 	errInvalidLearnedActions = errors.New("invalid actions for LearnedFlow")
 )
 
@@ -216,9 +215,9 @@ func (f *LearnedFlow) MarshalText() ([]byte, error) {
 
 	// A learned flow can have a limited set of actions, namely `load` and `output:field`.
 	for _, a := range f.Actions {
-		switch a.(type) {
+		switch a := a.(type) {
 		case *loadSetFieldAction:
-			if a.(*loadSetFieldAction).typ != actionLoad {
+			if a.typ != actionLoad {
 				return nil, errInvalidLearnedActions
 			}
 		case *outputFieldAction:

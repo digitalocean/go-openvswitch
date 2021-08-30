@@ -309,7 +309,7 @@ var (
 
 	// dumpAggregatePrefix is a sentinel value returned at the beginning of
 	// the output from "ovs-ofctl dump-aggregate"
-	dumpAggregatePrefix = []byte("NXST_AGGREGATE reply")
+	//dumpAggregatePrefix = []byte("NXST_AGGREGATE reply")
 )
 
 // dumpPorts calls 'ovs-ofctl dump-ports' with the specified arguments and
