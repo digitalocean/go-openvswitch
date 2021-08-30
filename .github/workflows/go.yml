@@ -52,7 +52,7 @@ jobs:
         echo "=========START LINT============"
         golint -set_exit_status ./cmd/... ./internal/...
         echo "=========START TESTS IN OVS============"
-        go test -v -race ./ovs/
+        go test -v -race -short ./ovs/
         echo "=========START TESTS IN OVSDB============"
         go test -v -race ./ovsdb/
         go test -c -race ./ovsdb
