@@ -409,7 +409,7 @@ func TestCtSetLimitsArgsToString(t *testing.T) {
 			zone:  invalidZone,
 			want1: "",
 			want2: "",
-			err:   "missing or too much arguments to setup ct limits",
+			err:   "missing or too many arguments to setup ct limits",
 		},
 		{
 			desc:  "Test parse missing limit argument",
@@ -430,7 +430,7 @@ func TestCtSetLimitsArgsToString(t *testing.T) {
 			zone:  make(map[string]uint64),
 			want1: "",
 			want2: "",
-			err:   "missing or too much arguments to setup ct limits",
+			err:   "missing or too many arguments to setup ct limits",
 		},
 	}
 	for _, tt := range tests {

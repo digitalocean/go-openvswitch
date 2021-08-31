@@ -22,12 +22,12 @@ import (
 )
 
 var (
-	errMissingDataPathName  = errors.New("datapath name argument is mandatory")
-	errUninitializedClient  = errors.New("client unitialized")
-	errMissingMandatoryZone = errors.New("at least 1 zone is mandatory")
-	errWrongArgumentNumber  = errors.New("missing or too much arguments to setup ct limits")
-	errWrongDefaultArgument = errors.New("wrong argument while setting default ct limits")
-	errWrongZoneArgument    = errors.New("wrong argument while setting zone ct limits")
+	errMissingMandatoryDataPathName = errors.New("datapath name argument is mandatory")
+	errUninitializedClient          = errors.New("client unitialized")
+	errMissingMandatoryZone         = errors.New("at least 1 zone is mandatory")
+	errWrongArgumentNumber          = errors.New("missing or too many arguments to setup ct limits")
+	errWrongDefaultArgument         = errors.New("wrong argument while setting default ct limits")
+	errWrongZoneArgument            = errors.New("wrong argument while setting zone ct limits")
 )
 
 // Zone defines the type used to store a zone as it is returned
@@ -44,7 +44,7 @@ type Zone map[string]uint64
 type ConnTrackOutput struct {
 	// defaulCT is used to store the global setting: default
 	defaultLimit Zone
-	//zones stores all remaning zone's settings
+	// zones stores all remaning zone's settings
 	zones []Zone
 }
 
@@ -78,10 +78,10 @@ type ConnTrackReader interface {
 // ConnTrackWriter is the interface defining the write operations
 // of ovs conntrack
 type ConnTrackWriter interface {
-	// SetCTLimits is the method used to setup a limit for an ofport (zone)
+	// SetCTLimits is the method used to setup a limit for a zone
 	// belonging to a datapath of  a switch
 	SetCTLimits(string) (string, error)
-	// DelCTLimits is the method used to remove a limit to an ofport (zone)
+	// DelCTLimits is the method used to remove a limit to a zone
 	// belonging to a datapath of a switch
 	DelCTLimits(string, []uint64) (string, error)
 }
@@ -152,7 +152,7 @@ func (dp *DataPathService) DelDataPath(dpName string) error {
 func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrackOutput, error) {
 	// Start by building the args
 	if dpName == "" {
-		return nil, errMissingDataPathName
+		return nil, errMissingMandatoryDataPathName
 	}
 
 	args := []string{"ct-get-limits", dpName}
@@ -215,7 +215,7 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 func (dp *DataPathService) SetCTLimits(dpName string, zone map[string]uint64) (string, error) {
 	// Sanitize the input
 	if dpName == "" {
-		return "", errMissingDataPathName
+		return "", errMissingMandatoryDataPathName
 	}
 	argsStr, err := ctSetLimitsArgsToString(zone)
 	if err != nil {
@@ -233,7 +233,7 @@ func (dp *DataPathService) SetCTLimits(dpName string, zone map[string]uint64) (s
 // sudo ovs-dpctl  ct-del-limits system@ovs-system  zone=40,4
 func (dp *DataPathService) DelCTLimits(dpName string, zones []uint64) (string, error) {
 	if dpName == "" {
-		return "", errMissingDataPathName
+		return "", errMissingMandatoryDataPathName
 	}
 	if len(zones) < 1 {
 		return "", errMissingMandatoryZone
@@ -253,7 +253,7 @@ func (dp *DataPathService) DelCTLimits(dpName string, zones []uint64) (string, e
 	return string(results), err
 }
 
-// ctSetLimitsArgsToString is function to help formating and sanatizing an input
+// ctSetLimitsArgsToString helps formating and sanatizing an input
 // It takes a  map and output a string like this:
 // - "zone=2,limit=10000" or "limit=10000,zone=2"
 // - "default=10000"
