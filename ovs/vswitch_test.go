@@ -74,6 +74,41 @@ func TestClientVSwitchAddPortOK(t *testing.T) {
 	}
 }
 
+func TestClientVSwitchBridgeToParentOK(t *testing.T) {
+	br := "br0-1"
+	wantBr := "br0"
+
+	// Add Timeout option to verify arguments
+	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+		// Verify command
+		if want, got := "ovs-vsctl", cmd; want != got {
+			t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		// Verify arguments including option flags
+		wantArgs := []string{"--timeout=1", "br-to-parent", br}
+		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		// Add whitespace to verify it is trimmed appropriately
+		return []byte("\n\n  " + wantBr + "\t\n "), nil
+	})
+
+	parentBr, err := c.VSwitch.BridgeToParent(br)
+	if err != nil {
+		t.Fatalf("unexpected error for Client.VSwitch.BridgeToParent: %v", err)
+	}
+
+	// Verify function return value
+	if want, got := wantBr, parentBr; want != got {
+		t.Fatalf("unexpected bridge:\n- want: %v\n-  got: %v",
+			want, got)
+	}
+}
+
 func TestClientVSwitchDeleteBridgeOK(t *testing.T) {
 	bridge := "br0"
 
