@@ -179,22 +179,22 @@ func TestDelDataPath(t *testing.T) {
 }
 
 func TestGetCTLimits(t *testing.T) {
-	z0 := make(Zone)
-	z0["default"] = 0
-	z1 := make(Zone)
+	d := make(CTLimit)
+	d["default"] = 0
+	z1 := make(CTLimit)
 	z1["zone"] = 2
 	z1["count"] = 0
 	z1["limit"] = 1000000
-	z2 := make(Zone)
+	z2 := make(CTLimit)
 	z2["zone"] = 3
 	z2["count"] = 0
 	z2["limit"] = 1000000
-	zones := make([]Zone, 0)
+	zones := make([]CTLimit, 0)
 	zones = append(zones, z1)
 	zones = append(zones, z2)
-	out := &ConnTrackOutput{
-		defaultLimit: z0,
-		zones:        zones,
+	out := &ConntrackOutput{
+		defaultLimit: d,
+		zoneLimits:   zones,
 	}
 
 	var tests = []struct {
@@ -202,7 +202,7 @@ func TestGetCTLimits(t *testing.T) {
 		dp       *DataPathService
 		dpName   string
 		zones    []uint64
-		want     *ConnTrackOutput
+		want     *ConntrackOutput
 		err      string
 		testCase uint8
 	}{
@@ -258,9 +258,9 @@ func TestGetCTLimits(t *testing.T) {
 				if tt.want.defaultLimit["default"] != results.defaultLimit["default"] {
 					t.Errorf("mismatched values, want %q  but got %q", tt.want.defaultLimit["default"], results.defaultLimit["default"])
 				}
-				for i, z := range results.zones {
-					if tt.want.zones[i]["zone"] != z["zone"] {
-						t.Errorf("mismatched values, want %q  but got %q", tt.want.zones[i]["zone"], z["zone"])
+				for i, z := range results.zoneLimits {
+					if tt.want.zoneLimits[i]["zone"] != z["zone"] {
+						t.Errorf("mismatched values, want %q  but got %q", tt.want.zoneLimits[i]["zone"], z["zone"])
 					}
 				}
 			case handleError:
@@ -282,36 +282,24 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 		t.Skip("skipping test in short mode.")
 	}
 
-	z0 := make(Zone)
-	z0["default"] = 200
-	z1 := make(Zone)
+	d := make(CTLimit)
+	d["default"] = 200
+	z1 := make(CTLimit)
 	z1["zone"] = 2
 	z1["count"] = 0
 	z1["limit"] = 200
-	z2 := make(Zone)
-	z2["zone"] = 3
-	z2["count"] = 0
-	z2["limit"] = 200
-	zones1 := make([]Zone, 0)
+	zones1 := make([]CTLimit, 0)
 	zones1 = append(zones1, z1)
-	zones1 = append(zones1, z2)
-	out := &ConnTrackOutput{
-		defaultLimit: z0,
-		zones:        zones1,
+	out := &ConntrackOutput{
+		defaultLimit: d,
+		zoneLimits:   zones1,
 	}
-	zones2 := make([]Zone, 0)
-	zones2 = append(zones2, z2)
-	outTest2 := &ConnTrackOutput{
-		defaultLimit: z0,
-		zones:        zones2,
-	}
-
 	var tests = []struct {
 		desc     string
 		dp       *DataPathService
 		dpName   string
 		zones    []uint64
-		want     *ConnTrackOutput
+		want     *ConntrackOutput
 		err      string
 		testCase uint8
 	}{
@@ -319,7 +307,7 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 			desc:     "Test valid ovs-dpctl ct-get-limits system@ovs-system zone=2,3 ",
 			dp:       NewDataPathService(),
 			dpName:   "ovs-system",
-			zones:    []uint64{2, 3},
+			zones:    []uint64{2},
 			want:     out,
 			err:      "",
 			testCase: validTest,
@@ -329,7 +317,7 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 			dp:       NewDataPathService(),
 			dpName:   "ovs-system",
 			zones:    []uint64{},
-			want:     outTest2,
+			want:     out,
 			err:      "",
 			testCase: validTest,
 		},
@@ -351,9 +339,9 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 				if tt.want.defaultLimit["default"] != results.defaultLimit["default"] {
 					t.Errorf("mismatched values, want %q  but got %q", tt.want.defaultLimit["default"], results.defaultLimit["default"])
 				}
-				for i, z := range results.zones {
-					if tt.want.zones[i]["zone"] != z["zone"] {
-						t.Errorf("mismatched values, want %q  but got %q", tt.want.zones[i]["zone"], z["zone"])
+				for i, z := range results.zoneLimits {
+					if tt.want.zoneLimits[i]["zone"] != z["zone"] {
+						t.Errorf("mismatched values, want %q  but got %q", tt.want.zoneLimits[i]["zone"], z["zone"])
 					}
 				}
 			case handleError:

@@ -30,22 +30,22 @@ var (
 	errWrongZoneArgument            = errors.New("wrong argument while setting zone ct limits")
 )
 
-// Zone defines the type used to store a zone as it is returned
+// CTLimit defines the type used to store a zone as it is returned
 // by ovs-dpctl ct-*-limits commands
-type Zone map[string]uint64
+type CTLimit map[string]uint64
 
-// ConnTrackOutput is a type defined to store the output
+// ConntrackOutput is a type defined to store the output
 // of ovs-dpctl ct-*-limits commands. For example it stores
 // such a cli output:
 // # ovs-dpctl ct-get-limits system@ovs-system zone=2,3
 // default limit=0
 // zone=2,limit=0,count=0
 // zone=3,limit=0,count=0
-type ConnTrackOutput struct {
-	// defaulCT is used to store the global setting: default
-	defaultLimit Zone
+type ConntrackOutput struct {
+	// defaultLimit is used to store the global setting: default
+	defaultLimit CTLimit
 	// zones stores all remaning zone's settings
-	zones []Zone
+	zoneLimits []CTLimit
 }
 
 // DataPathReader is the interface defining the read operations
@@ -72,7 +72,7 @@ type DataPathWriter interface {
 type ConnTrackReader interface {
 	// GetCTLimits is the method used to querying conntrack limits for a
 	// datapath on a switch
-	GetCTLimits(string, []uint64) (ConnTrackOutput, error)
+	GetCTLimits(string, []uint64) (ConntrackOutput, error)
 }
 
 // ConnTrackWriter is the interface defining the write operations
@@ -149,7 +149,7 @@ func (dp *DataPathService) DelDataPath(dpName string) error {
 
 // GetCTLimits returns the conntrack limits  for a given datapath
 // equivalent to running: 'sudo ovs-dpctl ct-get-limits <datapath_name> zone=<#1>,<#2>,...'
-func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrackOutput, error) {
+func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConntrackOutput, error) {
 	// Start by building the args
 	if dpName == "" {
 		return nil, errMissingMandatoryDataPathName
@@ -170,7 +170,7 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 
 	// Process the results
 	entries := strings.Split(string(results), "\n")
-	ctOut := &ConnTrackOutput{}
+	ctOut := &ConntrackOutput{}
 
 	r, err := regexp.Compile(`default`)
 	if err != nil {
@@ -181,7 +181,7 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 	// If found the default value is removed from the entries
 	for i, entry := range entries {
 		if r.MatchString(entry) {
-			ctOut.defaultLimit = make(Zone)
+			ctOut.defaultLimit = make(CTLimit)
 			limit, err := strconv.Atoi(strings.Split(entry, "=")[1])
 			if err != nil {
 				return nil, err
@@ -195,13 +195,13 @@ func (dp *DataPathService) GetCTLimits(dpName string, zones []uint64) (*ConnTrac
 	// Now process the zones setup
 	for _, entry := range entries {
 		fields := strings.Split(entry, ",")
-		z := make(Zone)
+		z := make(CTLimit)
 		for _, field := range fields {
 			buf := strings.Split(field, "=")
 			val, _ := strconv.Atoi(buf[1])
 			z[buf[0]] = uint64(val)
 		}
-		ctOut.zones = append(ctOut.zones, z)
+		ctOut.zoneLimits = append(ctOut.zoneLimits, z)
 	}
 
 	return ctOut, nil
