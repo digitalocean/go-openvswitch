@@ -858,6 +858,25 @@ func TestInterfaceOptions_slice(t *testing.T) {
 			},
 		},
 		{
+			desc: "flow based VxLAN tunnel",
+			i: InterfaceOptions{
+				Type:      InterfaceTypeVXLAN,
+				RemoteIP:  "192.168.11.12",
+				Key:       "flow",
+				DfDefault: "false",
+				LocalIP:   "192.168.11.10",
+				DstPort:   8472,
+			},
+			out: []string{
+				"type=vxlan",
+				"options:remote_ip=192.168.11.12",
+				"options:key=flow",
+				"options:df_default=false",
+				"options:local_ip=192.168.11.10",
+				"options:dst_port=8472",
+			},
+		},
+		{
 			desc: "all options",
 			i: InterfaceOptions{
 				Type:                 InterfaceTypePatch,
