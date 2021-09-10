@@ -26,11 +26,6 @@ import (
 const (
 	source      = "src"
 	destination = "dst"
-
-	sourceHardwareAddr = "sha"
-	targetHardwareAddr = "tha"
-	sourceProtocolAddr = "spa"
-	targetProtocolAddr = "tpa"
 )
 
 // Constants of full Match names.

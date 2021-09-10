@@ -119,7 +119,7 @@ const (
 )
 
 // ovsDatapathCmd as declared in ovsh/openvswitch.h:54
-type ovsDatapathCmd int32
+//type ovsDatapathCmd int32
 
 // ovsDatapathCmd enumeration from ovsh/openvswitch.h:54
 const (
@@ -131,7 +131,7 @@ const (
 )
 
 // ovsDatapathAttr as declared in ovsh/openvswitch.h:81
-type ovsDatapathAttr int32
+//type ovsDatapathAttr int32
 
 // ovsDatapathAttr enumeration from ovsh/openvswitch.h:81
 const (
@@ -146,7 +146,7 @@ const (
 )
 
 // ovsPacketCmd as declared in ovsh/openvswitch.h:134
-type ovsPacketCmd int32
+//type ovsPacketCmd int32
 
 // ovsPacketCmd enumeration from ovsh/openvswitch.h:134
 const (
@@ -157,7 +157,7 @@ const (
 )
 
 // ovsPacketAttr as declared in ovsh/openvswitch.h:177
-type ovsPacketAttr int32
+//type ovsPacketAttr int32
 
 // ovsPacketAttr enumeration from ovsh/openvswitch.h:177
 const (
@@ -176,7 +176,7 @@ const (
 )
 
 // ovsVportCmd as declared in ovsh/openvswitch.h:202
-type ovsVportCmd int32
+//type ovsVportCmd int32
 
 // ovsVportCmd enumeration from ovsh/openvswitch.h:202
 const (
@@ -188,7 +188,7 @@ const (
 )
 
 // ovsVportType as declared in ovsh/openvswitch.h:210
-type ovsVportType int32
+//type ovsVportType int32
 
 // ovsVportType enumeration from ovsh/openvswitch.h:210
 const (
@@ -202,7 +202,7 @@ const (
 )
 
 // ovsVportAttr as declared in ovsh/openvswitch.h:251
-type ovsVportAttr int32
+//type ovsVportAttr int32
 
 // ovsVportAttr enumeration from ovsh/openvswitch.h:251
 const (
@@ -240,7 +240,7 @@ const (
 )
 
 // ovsFlowCmd as declared in ovsh/openvswitch.h:294
-type ovsFlowCmd int32
+//type ovsFlowCmd int32
 
 // ovsFlowCmd enumeration from ovsh/openvswitch.h:294
 const (
@@ -252,7 +252,7 @@ const (
 )
 
 // ovsKeyAttr as declared in ovsh/openvswitch.h:307
-type ovsKeyAttr int32
+//type ovsKeyAttr int32
 
 // ovsKeyAttr enumeration from ovsh/openvswitch.h:307
 const (
@@ -289,7 +289,7 @@ const (
 )
 
 // ovsTunnelKeyAttr as declared in ovsh/openvswitch.h:349
-type ovsTunnelKeyAttr int32
+//type ovsTunnelKeyAttr int32
 
 // ovsTunnelKeyAttr enumeration from ovsh/openvswitch.h:349
 const (
@@ -313,7 +313,7 @@ const (
 )
 
 // ovsFragType as declared in ovsh/openvswitch.h:381
-type ovsFragType int32
+//type ovsFragType int32
 
 // ovsFragType enumeration from ovsh/openvswitch.h:381
 const (
@@ -324,7 +324,7 @@ const (
 )
 
 // ovsNshKeyAttr as declared in ovsh/openvswitch.h:499
-type ovsNshKeyAttr int32
+//type ovsNshKeyAttr int32
 
 // ovsNshKeyAttr enumeration from ovsh/openvswitch.h:499
 const (
@@ -336,7 +336,7 @@ const (
 )
 
 // ovsFlowAttr as declared in ovsh/openvswitch.h:565
-type ovsFlowAttr int32
+//type ovsFlowAttr int32
 
 // ovsFlowAttr enumeration from ovsh/openvswitch.h:565
 const (
@@ -356,7 +356,7 @@ const (
 )
 
 // ovsSampleAttr as declared in ovsh/openvswitch.h:606
-type ovsSampleAttr int32
+//type ovsSampleAttr int32
 
 // ovsSampleAttr enumeration from ovsh/openvswitch.h:606
 const (
@@ -367,7 +367,7 @@ const (
 )
 
 // ovsUserspaceAttr as declared in ovsh/openvswitch.h:640
-type ovsUserspaceAttr int32
+//type ovsUserspaceAttr int32
 
 // ovsUserspaceAttr enumeration from ovsh/openvswitch.h:640
 const (
@@ -380,7 +380,7 @@ const (
 )
 
 // ovsHashAlg as declared in ovsh/openvswitch.h:692
-type ovsHashAlg int32
+//type ovsHashAlg int32
 
 // ovsHashAlg enumeration from ovsh/openvswitch.h:692
 const (
@@ -388,7 +388,7 @@ const (
 )
 
 // ovsCtAttr as declared in ovsh/openvswitch.h:738
-type ovsCtAttr int32
+//type ovsCtAttr int32
 
 // ovsCtAttr enumeration from ovsh/openvswitch.h:738
 const (
@@ -405,7 +405,7 @@ const (
 )
 
 // ovsNatAttr as declared in ovsh/openvswitch.h:776
-type ovsNatAttr int32
+//type ovsNatAttr int32
 
 // ovsNatAttr enumeration from ovsh/openvswitch.h:776
 const (
@@ -423,7 +423,7 @@ const (
 )
 
 // ovsActionAttr as declared in ovsh/openvswitch.h:852
-type ovsActionAttr int32
+//type ovsActionAttr int32
 
 // ovsActionAttr enumeration from ovsh/openvswitch.h:852
 const (
@@ -451,7 +451,7 @@ const (
 )
 
 // ovsMeterCmd as declared in ovsh/openvswitch.h:894
-type ovsMeterCmd int32
+//type ovsMeterCmd int32
 
 // ovsMeterCmd enumeration from ovsh/openvswitch.h:894
 const (
@@ -463,7 +463,7 @@ const (
 )
 
 // ovsMeterAttr as declared in ovsh/openvswitch.h:902
-type ovsMeterAttr int32
+//type ovsMeterAttr int32
 
 // ovsMeterAttr enumeration from ovsh/openvswitch.h:902
 const (
@@ -481,7 +481,7 @@ const (
 )
 
 // ovsBandAttr as declared in ovsh/openvswitch.h:921
-type ovsBandAttr int32
+//type ovsBandAttr int32
 
 // ovsBandAttr enumeration from ovsh/openvswitch.h:921
 const (
@@ -494,7 +494,7 @@ const (
 )
 
 // ovsMeterBandType as declared in ovsh/openvswitch.h:932
-type ovsMeterBandType int32
+//type ovsMeterBandType int32
 
 // ovsMeterBandType enumeration from ovsh/openvswitch.h:932
 const (
