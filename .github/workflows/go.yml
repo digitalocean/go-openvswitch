@@ -20,6 +20,7 @@ jobs:
 
     - name: OVS setup
       run: |
+       sudo apt-get update
         sudo apt install openvswitch-switch
         sudo ovs-vsctl add-br ovsbr0
         
