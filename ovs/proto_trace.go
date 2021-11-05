@@ -139,6 +139,7 @@ type ProtoTrace struct {
 	FinalFlow       *DataPathFlows
 	DataPathActions DataPathActions
 	FlowActions     []string
+	RawOutput       []byte
 }
 
 // UnmarshalText unmarshals ProtoTrace text into a ProtoTrace type.

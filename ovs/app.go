@@ -52,6 +52,7 @@ func (a *AppService) ProtoTrace(bridge string, protocol Protocol, matches []Matc
 
 	pt := &ProtoTrace{
 		CommandStr: fmt.Sprintf("ovs-appctl %s", strings.Join(args, " ")),
+		RawOutput:  out,
 	}
 	err = pt.UnmarshalText(out)
 	if err != nil {
