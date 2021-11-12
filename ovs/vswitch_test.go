@@ -877,6 +877,23 @@ func TestInterfaceOptions_slice(t *testing.T) {
 			},
 		},
 		{
+			desc: "VxLAN tunnel with BFD enable",
+			i: InterfaceOptions{
+				Type:      InterfaceTypeVXLAN,
+				BfdEnable: true,
+				RemoteIP:  "192.168.11.12",
+				LocalIP:   "192.168.11.10",
+				DstPort:   8472,
+			},
+			out: []string{
+				"type=vxlan",
+				"bfd:enable=true",
+				"options:remote_ip=192.168.11.12",
+				"options:local_ip=192.168.11.10",
+				"options:dst_port=8472",
+			},
+		},
+		{
 			desc: "all options",
 			i: InterfaceOptions{
 				Type:                 InterfaceTypePatch,

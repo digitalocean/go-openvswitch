@@ -233,6 +233,9 @@ type InterfaceOptions struct {
 	// Type specifies the Open vSwitch interface type.
 	Type InterfaceType
 
+	// Indicate whether enable bfd.
+	BfdEnable bool
+
 	// Peer specifies an interface to peer with when creating a patch interface.
 	Peer string
 
@@ -296,6 +299,10 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Type != "" {
 		s = append(s, fmt.Sprintf("type=%s", i.Type))
+	}
+
+	if i.BfdEnable {
+		s = append(s, fmt.Sprintf("bfd:enable=true"))
 	}
 
 	if i.Peer != "" {
