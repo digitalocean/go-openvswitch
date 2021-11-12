@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
+	"github.com/danieldin95/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/mdlayher/genetlink"
 	"github.com/mdlayher/genetlink/genltest"
 	"github.com/mdlayher/netlink"

@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/digitalocean/go-openvswitch/ovsdb"
+	"github.com/danieldin95/go-openvswitch/ovsdb"
 	"github.com/google/go-cmp/cmp"
 )
 

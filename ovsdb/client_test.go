@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/digitalocean/go-openvswitch/ovsdb"
-	"github.com/digitalocean/go-openvswitch/ovsdb/internal/jsonrpc"
+	"github.com/danieldin95/go-openvswitch/ovsdb"
+	"github.com/danieldin95/go-openvswitch/ovsdb/internal/jsonrpc"
 	"github.com/google/go-cmp/cmp"
 )
 

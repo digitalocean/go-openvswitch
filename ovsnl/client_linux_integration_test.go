@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/digitalocean/go-openvswitch/ovsnl"
+	"github.com/danieldin95/go-openvswitch/ovsnl"
 	"github.com/google/go-cmp/cmp"
 )
 

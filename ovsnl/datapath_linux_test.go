@@ -20,7 +20,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
+	"github.com/danieldin95/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/google/go-cmp/cmp"
 	"github.com/mdlayher/genetlink"
 	"github.com/mdlayher/genetlink/genltest"

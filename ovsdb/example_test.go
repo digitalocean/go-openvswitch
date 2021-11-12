@@ -20,7 +20,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/digitalocean/go-openvswitch/ovsdb"
+	"github.com/danieldin95/go-openvswitch/ovsdb"
 )
 
 // This example demonstrates basic usage of a Client.  The Client connects to
