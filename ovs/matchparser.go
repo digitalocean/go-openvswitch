@@ -38,7 +38,7 @@ func parseMatch(key string, value string) (Match, error) {
 	case tpSRC, tpDST:
 		return parsePort(key, value, math.MaxUint16)
 	case conjID:
-		return parseIntMatch(key, value, math.MaxUint32)
+		return parseIntMatch(key, value, math.MaxInt32)
 	case arpSPA:
 		return ARPSourceProtocolAddress(value), nil
 	case arpTPA:
