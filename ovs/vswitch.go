@@ -302,7 +302,7 @@ func (i InterfaceOptions) slice() []string {
 	}
 
 	if i.BfdEnable {
-		s = append(s, fmt.Sprintf("bfd:enable=true"))
+		s = append(s, "bfd:enable=true")
 	}
 
 	if i.Peer != "" {
