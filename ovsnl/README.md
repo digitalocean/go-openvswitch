@@ -28,4 +28,14 @@ if err != nil {
 for _, d := range dps {
 	log.Printf("datapath: %q, flows: %d", d.Name, d.Stats.Flows)
 }
+
+// List OVS vports.
+vports, err := c.Vport.List()
+if err != nil {
+	log.Fatalf("failed to list vports: %v", err)
+}
+
+for _, p := range vports {
+	log.Printf("vport: %d %s type: %s stats: %v", p.ID, p.Name(), p.TypeName(), p.Stats)
+}
 ```
