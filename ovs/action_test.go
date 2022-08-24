@@ -535,6 +535,40 @@ func TestSetTunnel(t *testing.T) {
 	}
 }
 
+func TestMultipath(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "set multipath OK",
+			a:      Multipath("symmetric_l3l4+udp", 1024, "hrw", 2, 0, "reg0"),
+			action: "multipath(symmetric_l3l4+udp,1024,hrw,2,0,reg0)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestConjunction(t *testing.T) {
 	var tests = []struct {
 		desc   string

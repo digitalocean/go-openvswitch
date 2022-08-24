@@ -181,6 +181,7 @@ func StripVLAN() Action {
 // printf-style patterns for marshaling and unmarshaling actions.
 const (
 	patConnectionTracking          = "ct(%s)"
+	patMultipath                   = "multipath(%s,%d,%s,%d,%d,%s)"
 	patConjunction                 = "conjunction(%d,%d/%d)"
 	patModDataLinkDestination      = "mod_dl_dst:%s"
 	patModDataLinkSource           = "mod_dl_src:%s"
@@ -437,6 +438,46 @@ func (a *outputFieldAction) MarshalText() ([]byte, error) {
 // GoString implements Action.
 func (a *outputFieldAction) GoString() string {
 	return fmt.Sprintf("ovs.OutputField(%q)", a.field)
+}
+
+// Multipath returns a MultipathAction instance.
+//
+// Hashes fields using `basis` as a universal hash parameter, then
+// applies multipath link selection `algorithm` (with parameter `arg`)
+// to choose one of `n_links` output links numbered 0 through n_links
+// minus 1, and stores the link into `dst`, which must be a field or
+// subfield in the syntax described under ``Field Specifications’’
+// above.
+// https://www.openvswitch.org/support/dist-docs/ovs-actions.7.txt
+func Multipath(fields string, basis int, algorithm string, nlinks int, arg int, dst string) Action {
+	return &multipathAction{
+		fields:    fields,
+		basis:     basis,
+		algorithm: algorithm,
+		nlinks:    nlinks,
+		arg:       arg,
+		dst:       dst,
+	}
+}
+
+// MarshalText converts the Bucket to its string representation
+func (me *multipathAction) MarshalText() ([]byte, error) {
+	return bprintf(patMultipath, me.fields, me.basis, me.algorithm, me.nlinks, me.arg, me.dst), nil
+}
+
+// MultipathAction represents a multipath hashing rule
+type multipathAction struct {
+	fields    string
+	basis     int
+	algorithm string
+	nlinks    int
+	arg       int
+	dst       string
+}
+
+// GoString implements Action.
+func (me *multipathAction) GoString() string {
+	return fmt.Sprintf("ovs.Multipath(%q, %q, %q, %q, %q, %q)", me.fields, me.basis, me.algorithm, me.nlinks, me.arg, me.dst)
 }
 
 // Conjunction associates a flow with a certain conjunction ID to match on more than
