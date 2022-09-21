@@ -22,6 +22,8 @@ import (
 
 	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/mdlayher/genetlink"
+	"github.com/mdlayher/netlink"
+	"github.com/mdlayher/netlink/nlenc"
 )
 
 // Sizes of various structures, used in unsafe casts.
@@ -30,12 +32,15 @@ const (
 
 	sizeofDPStats         = int(unsafe.Sizeof(ovsh.DPStats{}))
 	sizeofDPMegaflowStats = int(unsafe.Sizeof(ovsh.DPMegaflowStats{}))
+	sizeofVportStats      = int(unsafe.Sizeof(ovsh.VportStats{}))
 )
 
 // A Client is a Linux Open vSwitch generic netlink client.
 type Client struct {
 	// Datapath provides access to DatapathService methods.
 	Datapath *DatapathService
+	// Vport provides access to VportService methods.
+	Vport *VportService
 
 	c *genetlink.Conn
 }
@@ -111,6 +116,12 @@ func (c *Client) initFamily(f genetlink.Family) error {
 			c: c,
 		}
 		return nil
+	case ovsh.VportFamily:
+		c.Vport = &VportService{
+			c: c,
+			f: f,
+		}
+		return nil
 	default:
 		// Unknown OVS netlink family, nothing we can do.
 		return fmt.Errorf("unknown OVS generic netlink family: %q", f.Name)
@@ -132,4 +143,133 @@ func parseHeader(b []byte) (ovsh.Header, error) {
 
 	h := *(*ovsh.Header)(unsafe.Pointer(&b[:sizeofHeader][0]))
 	return h, nil
+}
+
+// NlMsgBuilder to build genetlink message
+type NlMsgBuilder struct {
+	msg *genetlink.Message
+}
+
+// NewNlMsgBuilder construct a netlink message builder with genetlink.Message
+func NewNlMsgBuilder() *NlMsgBuilder {
+	return &NlMsgBuilder{msg: &genetlink.Message{}}
+}
+
+// PutGenlMsgHdr set msg header with genetlink.Header
+func (nlmsg *NlMsgBuilder) PutGenlMsgHdr(command, version uint8) {
+	nlmsg.msg.Header = genetlink.Header{
+		Command: command,
+		Version: version,
+	}
+}
+
+// PutOvsHeader set ovs header with ovsh.Header
+func (nlmsg *NlMsgBuilder) PutOvsHeader(dpID int32) {
+	nlmsg.msg.Data = headerBytes(ovsh.Header{Ifindex: dpID})
+}
+
+// PutStringAttr put attribute with string value
+func (nlmsg *NlMsgBuilder) PutStringAttr(typ uint16, value string) error {
+	attrs := []netlink.Attribute{
+		{
+			Type: typ,
+			Data: nlenc.Bytes(value),
+		},
+	}
+	attr, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal string attributes failed:%s", err)
+	}
+
+	nlmsg.msg.Data = append(nlmsg.msg.Data[:], attr...)
+	return nil
+}
+
+// PutUint8Attr put attribute with uint8 value
+func (nlmsg *NlMsgBuilder) PutUint8Attr(typ uint16, value uint8) error {
+	attrs := []netlink.Attribute{
+		{
+			Type: typ,
+			Data: nlenc.Uint8Bytes(value),
+		},
+	}
+	attr, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal uint8 attributes failed:%s", err)
+	}
+
+	nlmsg.msg.Data = append(nlmsg.msg.Data[:], attr...)
+	return nil
+}
+
+// PutUint16Attr put attribute with uint16 value
+func (nlmsg *NlMsgBuilder) PutUint16Attr(typ uint16, value uint16) error {
+	attrs := []netlink.Attribute{
+		{
+			Type: typ,
+			Data: nlenc.Uint16Bytes(value),
+		},
+	}
+	attr, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal uint16 attributes failed:%s", err)
+	}
+
+	nlmsg.msg.Data = append(nlmsg.msg.Data[:], attr...)
+	return nil
+}
+
+// PutUint32Attr put attribute with uint32 value
+func (nlmsg *NlMsgBuilder) PutUint32Attr(typ uint16, value uint32) error {
+	attrs := []netlink.Attribute{
+		{
+			Type: typ,
+			Data: nlenc.Uint32Bytes(value),
+		},
+	}
+	attr, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal uint32 attributes failed:%s", err)
+	}
+
+	nlmsg.msg.Data = append(nlmsg.msg.Data[:], attr...)
+	return nil
+}
+
+// PutSliceAttr put attribute with slice byte value
+func (nlmsg *NlMsgBuilder) PutSliceAttr(typ uint16, value []byte) error {
+	attrs := []netlink.Attribute{
+		{
+			Type: typ,
+			Data: value,
+		},
+	}
+	attr, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal slice byte attributes failed:%s", err)
+	}
+
+	nlmsg.msg.Data = append(nlmsg.msg.Data[:], attr...)
+	return nil
+}
+
+// PutEmptyAttr put attribute with empty value
+func (nlmsg *NlMsgBuilder) PutEmptyAttr(typ uint16) error {
+	attrs := []netlink.Attribute{
+		{
+			Type: typ,
+		},
+	}
+	attr, err := netlink.MarshalAttributes(attrs)
+	if err != nil {
+		return fmt.Errorf("marshal empty attributes failed:%s", err)
+	}
+
+	nlmsg.msg.Data = append(nlmsg.msg.Data[:], attr...)
+	return nil
+}
+
+// Message generic netlink message
+func (nlmsg *NlMsgBuilder) Message() genetlink.Message {
+	return *nlmsg.msg
 }
