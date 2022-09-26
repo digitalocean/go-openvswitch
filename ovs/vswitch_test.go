@@ -474,6 +474,7 @@ func TestClientVSwitchSetBridgeOptionsOK(t *testing.T) {
 	}
 	hwaddr := "55:84:a3:2f:d3:20"
 	stp := true
+	other := []string{"rstp_enable=false"}
 
 	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
 		if want, got := "ovs-vsctl", cmd; want != got {
@@ -490,6 +491,7 @@ func TestClientVSwitchSetBridgeOptionsOK(t *testing.T) {
 			fmt.Sprintf("other-config:hwaddr=%s", hwaddr),
 			fmt.Sprintf("stp_enable=%s", strconv.FormatBool(stp)),
 		}
+		wantArgs = append(wantArgs, other...)
 		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
 			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
 				want, got)
@@ -502,6 +504,7 @@ func TestClientVSwitchSetBridgeOptionsOK(t *testing.T) {
 		Protocols: protocols,
 		HWAddr:    hwaddr,
 		STP:       &stp,
+		Other:     other,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error for Client.VSwitch.Set.Bridge: %v", err)

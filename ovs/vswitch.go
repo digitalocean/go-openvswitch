@@ -211,6 +211,10 @@ type BridgeOptions struct {
 	// STP defines if the spanning tree protocol is to be enabled on the bridge. A
 	// nil value here will not change the STP config of the bridge.
 	STP *bool
+
+	// Other defines bridge config options not otherwise present in this package
+	// but available in ovs such as rstp options (e.g. `rstp_enable=false`).
+	Other []string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -230,7 +234,7 @@ func (o BridgeOptions) slice() []string {
 		s = append(s, fmt.Sprintf("stp_enable=%s", strconv.FormatBool(*o.STP)))
 	}
 
-	return s
+	return append(s, o.Other...)
 }
 
 // Interface sets configuration for an interface using the values from an
