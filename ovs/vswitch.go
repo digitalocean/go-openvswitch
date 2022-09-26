@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -204,8 +205,12 @@ type BridgeOptions struct {
 	// Protocols specifies the OpenFlow protocols the bridge should use.
 	Protocols []string
 
-	//HWAddr specifies the MAC address to be assigned to the bridge.
+	// HWAddr specifies the MAC address to be assigned to the bridge.
 	HWAddr string
+
+	// STP defines if the spanning tree protocol is to be enabled on the bridge. A
+	// nil value here will not change the STP config of the bridge.
+	STP *bool
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -219,6 +224,10 @@ func (o BridgeOptions) slice() []string {
 
 	if hw, err := net.ParseMAC(o.HWAddr); err == nil {
 		s = append(s, fmt.Sprintf("other-config:hwaddr=%s", hw.String()))
+	}
+
+	if o.STP != nil {
+		s = append(s, fmt.Sprintf("stp_enable=%s", strconv.FormatBool(*o.STP)))
 	}
 
 	return s
