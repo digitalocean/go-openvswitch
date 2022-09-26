@@ -461,7 +461,7 @@ func TestClientVSwitchGetBridgeProtocolsOK(t *testing.T) {
 	}
 }
 
-func TestClientVSwitchSetBridgeProtocolsOK(t *testing.T) {
+func TestClientVSwitchSetBridgeOptionsOK(t *testing.T) {
 	const bridge = "br0"
 	protocols := []string{
 		ProtocolOpenFlow10,
@@ -471,6 +471,7 @@ func TestClientVSwitchSetBridgeProtocolsOK(t *testing.T) {
 		ProtocolOpenFlow14,
 		ProtocolOpenFlow15,
 	}
+	hwaddr := "55:84:a3:2f:d3:20"
 
 	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
 		if want, got := "ovs-vsctl", cmd; want != got {
@@ -484,6 +485,7 @@ func TestClientVSwitchSetBridgeProtocolsOK(t *testing.T) {
 			"bridge",
 			bridge,
 			fmt.Sprintf("protocols=%s", strings.Join(protocols, ",")),
+			fmt.Sprintf("other-config:hwaddr=%s", hwaddr),
 		}
 		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
 			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
@@ -495,6 +497,7 @@ func TestClientVSwitchSetBridgeProtocolsOK(t *testing.T) {
 
 	err := c.VSwitch.Set.Bridge(bridge, BridgeOptions{
 		Protocols: protocols,
+		HWAddr:    hwaddr,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error for Client.VSwitch.Set.Bridge: %v", err)

@@ -17,6 +17,7 @@ package ovs
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 )
 
@@ -202,6 +203,9 @@ func (v *VSwitchSetService) Bridge(bridge string, options BridgeOptions) error {
 type BridgeOptions struct {
 	// Protocols specifies the OpenFlow protocols the bridge should use.
 	Protocols []string
+
+	//HWAddr specifies the MAC address to be assigned to the bridge.
+	HWAddr string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -211,6 +215,10 @@ func (o BridgeOptions) slice() []string {
 
 	if len(o.Protocols) > 0 {
 		s = append(s, fmt.Sprintf("protocols=%s", strings.Join(o.Protocols, ",")))
+	}
+
+	if hw, err := net.ParseMAC(o.HWAddr); err == nil {
+		s = append(s, fmt.Sprintf("other-config:hwaddr=%s", hw.String()))
 	}
 
 	return s
