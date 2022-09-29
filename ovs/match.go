@@ -917,8 +917,8 @@ func TransportDestinationMaskedPort(port uint16, mask uint16) Match {
 	}
 }
 
-// UdpSourcePort matches packets with a UDP source port matching port.
-func UdpSourcePort(port uint16) Match {
+// UDPSourcePort matches packets with a UDP source port matching port.
+func UDPSourcePort(port uint16) Match {
 	return &udpPortMatch{
 		srcdst: source,
 		port:   port,
@@ -926,8 +926,8 @@ func UdpSourcePort(port uint16) Match {
 	}
 }
 
-// UdpDestinationPort matches packets with a UDP destination port matching port.
-func UdpDestinationPort(port uint16) Match {
+// UDPDestinationPort matches packets with a UDP destination port matching port.
+func UDPDestinationPort(port uint16) Match {
 	return &udpPortMatch{
 		srcdst: destination,
 		port:   port,
@@ -935,8 +935,8 @@ func UdpDestinationPort(port uint16) Match {
 	}
 }
 
-// UdpSourceMaskedPort matches packets with UDP source port matching a masked port range.
-func UdpSourceMaskedPort(port uint16, mask uint16) Match {
+// UDPSourceMaskedPort matches packets with UDP source port matching a masked port range.
+func UDPSourceMaskedPort(port uint16, mask uint16) Match {
 	return &udpPortMatch{
 		srcdst: source,
 		port:   port,
@@ -944,8 +944,8 @@ func UdpSourceMaskedPort(port uint16, mask uint16) Match {
 	}
 }
 
-// UdpDestinationMaskedPort matches packets with a UDP destination port matching a masked port range.
-func UdpDestinationMaskedPort(port uint16, mask uint16) Match {
+// UDPDestinationMaskedPort matches packets with a UDP destination port matching a masked port range.
+func UDPDestinationMaskedPort(port uint16, mask uint16) Match {
 	return &udpPortMatch{
 		srcdst: destination,
 		port:   port,
@@ -969,8 +969,8 @@ type udpPortRange struct {
 	endPort   uint16
 }
 
-// UdpDestinationPortRange represent a port range intended for a UDP protocol destination port.
-func UdpDestinationPortRange(startPort uint16, endPort uint16) TransportPortRanger {
+// UDPDestinationPortRange represent a port range intended for a UDP protocol destination port.
+func UDPDestinationPortRange(startPort uint16, endPort uint16) TransportPortRanger {
 	return &udpPortRange{
 		srcdst:    destination,
 		startPort: startPort,
@@ -978,8 +978,8 @@ func UdpDestinationPortRange(startPort uint16, endPort uint16) TransportPortRang
 	}
 }
 
-// UdpSourcePortRange represent a port range intended for a UDP protocol source port.
-func UdpSourcePortRange(startPort uint16, endPort uint16) TransportPortRanger {
+// UDPSourcePortRange represent a port range intended for a UDP protocol source port.
+func UDPSourcePortRange(startPort uint16, endPort uint16) TransportPortRanger {
 	return &udpPortRange{
 		srcdst:    source,
 		startPort: startPort,
@@ -1015,7 +1015,7 @@ func (pr *udpPortRange) MaskedPorts() ([]Match, error) {
 
 // MarshalText implements Match.
 func (m *udpPortMatch) MarshalText() ([]byte, error) {
-	return matchUdpPort(m.srcdst, m.port, m.mask)
+	return matchUDPPort(m.srcdst, m.port, m.mask)
 }
 
 // GoString implements Match.
@@ -1607,9 +1607,9 @@ func matchTransportPort(srcdst string, port uint16, mask uint16) ([]byte, error)
 	return bprintf("tp_%s=0x%04x/0x%04x", srcdst, port, mask), nil
 }
 
-// matchUdpPort is the common implementation for
+// matchUDPPort is the common implementation for
 // Udp{Source,Destination}Port.
-func matchUdpPort(srcdst string, port uint16, mask uint16) ([]byte, error) {
+func matchUDPPort(srcdst string, port uint16, mask uint16) ([]byte, error) {
 	// No mask specified
 	if mask == 0 {
 		return bprintf("udp_%s=%d", srcdst, port), nil

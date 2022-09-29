@@ -216,9 +216,9 @@ func parsePort(key string, value string, max int) (Match, error) {
 	case tpDST:
 		return TransportDestinationMaskedPort(uint16(values[0]), uint16(values[1])), nil
 	case udpSRC:
-		return UdpSourceMaskedPort(uint16(values[0]), uint16(values[1])), nil
+		return UDPSourceMaskedPort(uint16(values[0]), uint16(values[1])), nil
 	case udpDST:
-		return UdpDestinationMaskedPort(uint16(values[0]), uint16(values[1])), nil
+		return UDPDestinationMaskedPort(uint16(values[0]), uint16(values[1])), nil
 	}
 	// Return error if input is invalid
 	return nil, fmt.Errorf("no action matched for %s=%s", key, value)

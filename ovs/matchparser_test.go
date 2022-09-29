@@ -236,7 +236,7 @@ func Test_parseMatch(t *testing.T) {
 		},
 		{
 			s: "udp_dst=80",
-			m: UdpDestinationPort(80),
+			m: UDPDestinationPort(80),
 		},
 		{
 			s:       "udp_src=65536",
@@ -244,7 +244,7 @@ func Test_parseMatch(t *testing.T) {
 		},
 		{
 			s: "udp_src=80",
-			m: UdpSourcePort(80),
+			m: UDPSourcePort(80),
 		},
 		{
 			s:       "vlan_tci=",
@@ -515,7 +515,7 @@ func Test_parseMatch(t *testing.T) {
 		{
 			desc: "udp_dst 0xea60/0xffe0",
 			s:    "udp_dst=0xea60/0xffe0",
-			m:    UdpDestinationMaskedPort(0xea60, 0xffe0),
+			m:    UDPDestinationMaskedPort(0xea60, 0xffe0),
 		},
 		{
 			desc:    "udp_dst 0xea60/0xffe0/0xdddd",
@@ -540,7 +540,7 @@ func Test_parseMatch(t *testing.T) {
 		{
 			desc: "udp_src 0xea60/0xffe0",
 			s:    "udp_src=0xea60/0xffe0",
-			m:    UdpSourceMaskedPort(0xea60, 0xffe0),
+			m:    UDPSourceMaskedPort(0xea60, 0xffe0),
 		},
 		{
 			desc:    "udp_src 0xea60/0xffe0/0xdddd",
