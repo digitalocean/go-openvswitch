@@ -922,6 +922,111 @@ func TestMatchTransportPortRange(t *testing.T) {
 	}
 }
 
+func TestMatchUdp(t *testing.T) {
+	var tests = []struct {
+		desc string
+		m    Match
+		out  string
+	}{
+		{
+			desc: "source port 80",
+			m:    UdpSourcePort(80),
+			out:  "udp_src=80",
+		},
+		{
+			desc: "source port 65535",
+			m:    UdpSourcePort(65535),
+			out:  "udp_src=65535",
+		},
+		{
+			desc: "destination port 22",
+			m:    UdpDestinationPort(22),
+			out:  "udp_dst=22",
+		},
+		{
+			desc: "destination port 8080",
+			m:    UdpDestinationPort(8080),
+			out:  "udp_dst=8080",
+		},
+		{
+			desc: "source port range 16/0xfff0 (16-31)",
+			m:    UdpSourceMaskedPort(0x10, 0xfff0),
+			out:  "udp_src=0x0010/0xfff0",
+		},
+		{
+			desc: "destination port range 16/0xfff0 (16-31)",
+			m:    UdpDestinationMaskedPort(0x10, 0xfff0),
+			out:  "udp_dst=0x0010/0xfff0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			out, err := tt.m.MarshalText()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if want, got := tt.out, string(out); want != got {
+				t.Fatalf("unexpected Match output:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestMatchUdpPortRange(t *testing.T) {
+	var tests = []struct {
+		desc string
+		pr   TransportPortRanger
+		m    []Match
+	}{
+		{
+			desc: "destination port range 16-31",
+			pr:   UdpDestinationPortRange(16, 31),
+			m: []Match{
+				UdpDestinationMaskedPort(0x10, 0xfff0),
+			},
+		},
+		{
+			desc: "source port range 16-31",
+			pr:   UdpSourcePortRange(16, 31),
+			m: []Match{
+				UdpSourceMaskedPort(0x10, 0xfff0),
+			},
+		},
+		{
+			desc: "destination port range 16-32",
+			pr:   UdpDestinationPortRange(16, 32),
+			m: []Match{
+				UdpDestinationMaskedPort(0x10, 0xfff0),
+				UdpDestinationMaskedPort(0x20, 0xffff),
+			},
+		},
+		{
+			desc: "source port range 16-32",
+			pr:   UdpSourcePortRange(16, 32),
+			m: []Match{
+				UdpSourceMaskedPort(0x10, 0xfff0),
+				UdpSourceMaskedPort(0x20, 0xffff),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			m, err := tt.pr.MaskedPorts()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if want, got := tt.m, m; !reflect.DeepEqual(want, got) {
+				t.Fatalf("unexpected Match:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestMatchVLANTCI(t *testing.T) {
 	var tests = []struct {
 		desc string
