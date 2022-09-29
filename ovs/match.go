@@ -962,6 +962,57 @@ type udpPortMatch struct {
 
 var _ Match = &udpPortMatch{}
 
+// A udpPortRange reprsents the start and end values of a udp protocol port range.
+type udpPortRange struct {
+	srcdst    string
+	startPort uint16
+	endPort   uint16
+}
+
+// UdpDestinationPortRange represent a port range intended for a UDP protocol destination port.
+func UdpDestinationPortRange(startPort uint16, endPort uint16) TransportPortRanger {
+	return &udpPortRange{
+		srcdst:    destination,
+		startPort: startPort,
+		endPort:   endPort,
+	}
+}
+
+// UdpSourcePortRange represent a port range intended for a UDP protocol source port.
+func UdpSourcePortRange(startPort uint16, endPort uint16) TransportPortRanger {
+	return &udpPortRange{
+		srcdst:    source,
+		startPort: startPort,
+		endPort:   endPort,
+	}
+}
+
+// MaskedPorts returns the represented port ranges as an array of bitwise matches.
+func (pr *udpPortRange) MaskedPorts() ([]Match, error) {
+	portRange := PortRange{
+		Start: pr.startPort,
+		End:   pr.endPort,
+	}
+
+	bitRanges, err := portRange.BitwiseMatch()
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []Match
+
+	for _, br := range bitRanges {
+		maskedPortRange := &udpPortMatch{
+			srcdst: pr.srcdst,
+			port:   br.Value,
+			mask:   br.Mask,
+		}
+		ports = append(ports, maskedPortRange)
+	}
+
+	return ports, nil
+}
+
 // MarshalText implements Match.
 func (m *udpPortMatch) MarshalText() ([]byte, error) {
 	return matchUdpPort(m.srcdst, m.port, m.mask)
