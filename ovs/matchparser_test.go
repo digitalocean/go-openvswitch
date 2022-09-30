@@ -231,6 +231,22 @@ func Test_parseMatch(t *testing.T) {
 			m: TransportSourcePort(80),
 		},
 		{
+			s:       "udp_dst=65536",
+			invalid: true,
+		},
+		{
+			s: "udp_dst=80",
+			m: UDPDestinationPort(80),
+		},
+		{
+			s:       "udp_src=65536",
+			invalid: true,
+		},
+		{
+			s: "udp_src=80",
+			m: UDPSourcePort(80),
+		},
+		{
 			s:       "vlan_tci=",
 			invalid: true,
 		},
@@ -479,6 +495,56 @@ func Test_parseMatch(t *testing.T) {
 		{
 			desc:    "tp_src 0xea60/0xffe0/0xdddd",
 			s:       "tp_src=0xea60/0xffe0/0xdddd",
+			invalid: true,
+		},
+		{
+			desc:    "udp_dst out of range 65536/0xffe0",
+			s:       "udp_dst=65536/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "udp_dst out of range 0x10000/0xffe0",
+			s:       "udp_dst=0x10000/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "udp_dst out of range 0xea60/0x10000",
+			s:       "udp_dst=0xea60/0x10000",
+			invalid: true,
+		},
+		{
+			desc: "udp_dst 0xea60/0xffe0",
+			s:    "udp_dst=0xea60/0xffe0",
+			m:    UDPDestinationMaskedPort(0xea60, 0xffe0),
+		},
+		{
+			desc:    "udp_dst 0xea60/0xffe0/0xdddd",
+			s:       "udp_dst=0xea60/0xffe0/0xdddd",
+			invalid: true,
+		},
+		{
+			desc:    "udp_src out of range 65536/0xffe0",
+			s:       "udp_src=65536/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "udp_src out of range 0x10000/0xffe0",
+			s:       "udp_src=0x10000/0xffe0",
+			invalid: true,
+		},
+		{
+			desc:    "udp_src out of range 0xea60/0x10000",
+			s:       "udp_src=0xea60/0x10000",
+			invalid: true,
+		},
+		{
+			desc: "udp_src 0xea60/0xffe0",
+			s:    "udp_src=0xea60/0xffe0",
+			m:    UDPSourceMaskedPort(0xea60, 0xffe0),
+		},
+		{
+			desc:    "udp_src 0xea60/0xffe0/0xdddd",
+			s:       "udp_src=0xea60/0xffe0/0xdddd",
 			invalid: true,
 		},
 	}
