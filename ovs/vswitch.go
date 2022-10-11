@@ -289,6 +289,12 @@ type InterfaceOptions struct {
 
 	// Bridge to be connected if vxlan
 	Bridge string
+
+	//Src Port
+	SrcPort string
+
+	//Dst Port
+	DstPort string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -329,5 +335,14 @@ func (i InterfaceOptions) slice() []string {
 	if i.LocalIP != "" {
 		s = append(s, fmt.Sprintf("options:local_ip=%s", i.LocalIP))
 	}
+
+	if i.SrcPort != "" {
+		s = append(s, fmt.Sprintf("options:src_port=%s", i.SrcPort))
+	}
+
+	if i.DstPort != "" {
+		s = append(s, fmt.Sprintf("options:dst_port=%s", i.DstPort))
+	}
+
 	return s
 }
