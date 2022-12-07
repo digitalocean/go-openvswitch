@@ -30,7 +30,7 @@ jobs:
         export PATH=$PATH:$GOPATH/bin
         mkdir $GOPATH/src $GOPATH/pkg $GOPATH/bin
         go install honnef.co/go/tools/cmd/staticcheck@latest
-        NEW=$GOPATH/src/github.com/digitalocean/go-openvswitch
+        NEW=$GOPATH/src/github.com/danieldin95/go-openvswitch
         mkdir -p $NEW
         cp -r ./* $NEW
         cd $NEW

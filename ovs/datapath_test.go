@@ -334,6 +334,10 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			results, err := tt.dp.GetCTLimits(tt.dpName, tt.zones)
+			if err != nil {
+				t.Errorf(err.Error())
+				return
+			}
 			switch tt.testCase {
 			case validTest:
 				if tt.want.defaultLimit["default"] != results.defaultLimit["default"] {

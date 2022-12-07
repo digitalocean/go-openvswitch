@@ -233,6 +233,9 @@ type InterfaceOptions struct {
 	// Type specifies the Open vSwitch interface type.
 	Type InterfaceType
 
+	// Indicate whether enable bfd.
+	BfdEnable bool
+
 	// Peer specifies an interface to peer with when creating a patch interface.
 	Peer string
 
@@ -274,6 +277,19 @@ type InterfaceOptions struct {
 	// tunneled traffic leaving this interface. Optionally it could be set to
 	// "flow" which expects the flow to set tunnel ID.
 	Key string
+
+	// Specifies the usage of the Don't Fragment flag (DF) bit in outgoing packets
+	// with IPv4 headers. The value inherit causes the bit to be copied from
+	// the original IP header. The values unset and set cause the bit to be always unset
+	// or always set, respectively. By default, the bit is not set.
+	DfDefault string
+
+	// Specifies the source IP address to use in outgoing packets.
+	LocalIP string
+
+	// Specifies the UDP destination port to communicate to the remote
+	// VXLAN tunnel endpoint.
+	DstPort uint32
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -283,6 +299,10 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Type != "" {
 		s = append(s, fmt.Sprintf("type=%s", i.Type))
+	}
+
+	if i.BfdEnable {
+		s = append(s, "bfd:enable=true")
 	}
 
 	if i.Peer != "" {
@@ -313,6 +333,18 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Key != "" {
 		s = append(s, fmt.Sprintf("options:key=%s", i.Key))
+	}
+
+	if i.DfDefault != "" {
+		s = append(s, fmt.Sprintf("options:df_default=%s", i.DfDefault))
+	}
+
+	if i.LocalIP != "" {
+		s = append(s, fmt.Sprintf("options:local_ip=%s", i.LocalIP))
+	}
+
+	if i.DstPort > 0 {
+		s = append(s, fmt.Sprintf("options:dst_port=%d", i.DstPort))
 	}
 
 	return s

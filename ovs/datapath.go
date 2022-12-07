@@ -96,7 +96,7 @@ type CLI interface {
 // supported by the ovs-dpctl command
 type DataPathService struct {
 	// We define here a CLI interface making easier to mock ovs-dpctl command
-	// as in github.com/digitalocean/go-openvswitch/ovs/datapath_test.go
+	// as in github.com/danieldin95/go-openvswitch/ovs/datapath_test.go
 	CLI
 }
 

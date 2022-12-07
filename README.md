@@ -1,4 +1,7 @@
-go-openvswitch [![Build Status](https://travis-ci.org/digitalocean/go-openvswitch.svg?branch=master)](https://travis-ci.org/digitalocean/go-openvswitch) [![GoDoc](https://godoc.org/github.com/digitalocean/go-openvswitch?status.svg)](https://godoc.org/github.com/digitalocean/go-openvswitch) [![Go Report Card](https://goreportcard.com/badge/github.com/digitalocean/go-openvswitch)](https://goreportcard.com/report/github.com/digitalocean/go-openvswitch)
+go-openvswitch 
+[![Build Status](https://travis-ci.org/danieldin95/go-openvswitch.svg?branch=master)](https://travis-ci.org/danieldin95/go-openvswitch) 
+[![GoDoc](https://godoc.org/github.com/danieldin95/go-openvswitch?status.svg)](https://godoc.org/github.com/danieldin95/go-openvswitch) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/danieldin95/go-openvswitch)](https://goreportcard.com/report/github.com/danieldin95/go-openvswitch)
 ==============
 
 Go packages which enable interacting with Open vSwitch and related tools. Apache 2.0 Licensed.
