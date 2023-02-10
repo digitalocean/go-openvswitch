@@ -693,7 +693,7 @@ func (i *inPortMatch) MarshalText() ([]byte, error) {
 
 // GoString implements Match.
 func (i *inPortMatch) GoString() string {
-	return fmt.Sprintf("ovs.InPort(%q)", i.port)
+	return fmt.Sprintf("ovs.InPort(%d)", i.port)
 }
 
 // NeighborDiscoveryTarget matches packets with an IPv6 neighbor discovery target
