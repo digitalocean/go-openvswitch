@@ -75,6 +75,8 @@ const (
 	tunTTL      = "tun_ttl"
 	tunv6DST    = "tun_ipv6_dst"
 	tunv6SRC    = "tun_ipv6_src"
+	udpDST      = "udp_dst"
+	udpSRC      = "udp_src"
 	vlanTCI1    = "vlan_tci1"
 	vlanTCI     = "vlan_tci"
 )
@@ -691,7 +693,7 @@ func (i *inPortMatch) MarshalText() ([]byte, error) {
 
 // GoString implements Match.
 func (i *inPortMatch) GoString() string {
-	return fmt.Sprintf("ovs.InPort(%q)", i.port)
+	return fmt.Sprintf("ovs.InPort(%d)", i.port)
 }
 
 // NeighborDiscoveryTarget matches packets with an IPv6 neighbor discovery target
@@ -879,8 +881,7 @@ func (m *arpProtocolAddressMatch) GoString() string {
 	return fmt.Sprintf("ovs.ARPTargetProtocolAddress(%q)", m.ip)
 }
 
-// TransportSourcePort matches packets with a transport layer (TCP/UDP) source
-// port matching port.
+// TransportSourcePort matches packets with a TCP source port matching port.
 func TransportSourcePort(port uint16) Match {
 	return &transportPortMatch{
 		srcdst: source,
@@ -889,8 +890,7 @@ func TransportSourcePort(port uint16) Match {
 	}
 }
 
-// TransportDestinationPort matches packets with a transport layer (TCP/UDP)
-// destination port matching port.
+// TransportDestinationPort matches packets with a TCP destination port matching port.
 func TransportDestinationPort(port uint16) Match {
 	return &transportPortMatch{
 		srcdst: destination,
@@ -899,8 +899,7 @@ func TransportDestinationPort(port uint16) Match {
 	}
 }
 
-// TransportSourceMaskedPort matches packets with a transport layer (TCP/UDP)
-// source port matching a masked port range.
+// TransportSourceMaskedPort matches packets with TCP source port matching a masked port range.
 func TransportSourceMaskedPort(port uint16, mask uint16) Match {
 	return &transportPortMatch{
 		srcdst: source,
@@ -909,14 +908,131 @@ func TransportSourceMaskedPort(port uint16, mask uint16) Match {
 	}
 }
 
-// TransportDestinationMaskedPort matches packets with a transport layer (TCP/UDP)
-// destination port matching a masked port range.
+// TransportDestinationMaskedPort matches packets with a TCP destination port matching a masked port range.
 func TransportDestinationMaskedPort(port uint16, mask uint16) Match {
 	return &transportPortMatch{
 		srcdst: destination,
 		port:   port,
 		mask:   mask,
 	}
+}
+
+// UDPSourcePort matches packets with a UDP source port matching port.
+func UDPSourcePort(port uint16) Match {
+	return &udpPortMatch{
+		srcdst: source,
+		port:   port,
+		mask:   0,
+	}
+}
+
+// UDPDestinationPort matches packets with a UDP destination port matching port.
+func UDPDestinationPort(port uint16) Match {
+	return &udpPortMatch{
+		srcdst: destination,
+		port:   port,
+		mask:   0,
+	}
+}
+
+// UDPSourceMaskedPort matches packets with UDP source port matching a masked port range.
+func UDPSourceMaskedPort(port uint16, mask uint16) Match {
+	return &udpPortMatch{
+		srcdst: source,
+		port:   port,
+		mask:   mask,
+	}
+}
+
+// UDPDestinationMaskedPort matches packets with a UDP destination port matching a masked port range.
+func UDPDestinationMaskedPort(port uint16, mask uint16) Match {
+	return &udpPortMatch{
+		srcdst: destination,
+		port:   port,
+		mask:   mask,
+	}
+}
+
+// A udpPortMatch is a Match returned by Udp{Source,Destination}Port.
+type udpPortMatch struct {
+	srcdst string
+	port   uint16
+	mask   uint16
+}
+
+var _ Match = &udpPortMatch{}
+
+// A udpPortRange reprsents the start and end values of a udp protocol port range.
+type udpPortRange struct {
+	srcdst    string
+	startPort uint16
+	endPort   uint16
+}
+
+// UDPDestinationPortRange represent a port range intended for a UDP protocol destination port.
+func UDPDestinationPortRange(startPort uint16, endPort uint16) TransportPortRanger {
+	return &udpPortRange{
+		srcdst:    destination,
+		startPort: startPort,
+		endPort:   endPort,
+	}
+}
+
+// UDPSourcePortRange represent a port range intended for a UDP protocol source port.
+func UDPSourcePortRange(startPort uint16, endPort uint16) TransportPortRanger {
+	return &udpPortRange{
+		srcdst:    source,
+		startPort: startPort,
+		endPort:   endPort,
+	}
+}
+
+// MaskedPorts returns the represented port ranges as an array of bitwise matches.
+func (pr *udpPortRange) MaskedPorts() ([]Match, error) {
+	portRange := PortRange{
+		Start: pr.startPort,
+		End:   pr.endPort,
+	}
+
+	bitRanges, err := portRange.BitwiseMatch()
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []Match
+
+	for _, br := range bitRanges {
+		maskedPortRange := &udpPortMatch{
+			srcdst: pr.srcdst,
+			port:   br.Value,
+			mask:   br.Mask,
+		}
+		ports = append(ports, maskedPortRange)
+	}
+
+	return ports, nil
+}
+
+// MarshalText implements Match.
+func (m *udpPortMatch) MarshalText() ([]byte, error) {
+	return matchUDPPort(m.srcdst, m.port, m.mask)
+}
+
+// GoString implements Match.
+func (m *udpPortMatch) GoString() string {
+	if m.mask > 0 {
+		if m.srcdst == source {
+			return fmt.Sprintf("ovs.UdpSourceMaskedPort(%#x, %#x)", m.port, m.mask)
+		}
+
+		return fmt.Sprintf("ovs.UdpDestinationMaskedPort(%#x, %#x)", m.port, m.mask)
+	}
+
+	if m.srcdst == source {
+		return fmt.Sprintf("ovs.UdpSourcePort(%d)", m.port)
+	}
+
+	return fmt.Sprintf("ovs.UdpDestinationPort(%d)", m.port)
 }
 
 // A transportPortMatch is a Match returned by Transport{Source,Destination}Port.
@@ -1489,6 +1605,17 @@ func matchTransportPort(srcdst string, port uint16, mask uint16) ([]byte, error)
 	}
 
 	return bprintf("tp_%s=0x%04x/0x%04x", srcdst, port, mask), nil
+}
+
+// matchUDPPort is the common implementation for
+// Udp{Source,Destination}Port.
+func matchUDPPort(srcdst string, port uint16, mask uint16) ([]byte, error) {
+	// No mask specified
+	if mask == 0 {
+		return bprintf("udp_%s=%d", srcdst, port), nil
+	}
+
+	return bprintf("udp_%s=0x%04x/0x%04x", srcdst, port, mask), nil
 }
 
 // IPFragFlag is a string type which can be used with the IPFragMatch.

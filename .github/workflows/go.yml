@@ -29,14 +29,13 @@ jobs:
         export GOPATH=/home/runner/work
         export PATH=$PATH:$GOPATH/bin
         mkdir $GOPATH/src $GOPATH/pkg $GOPATH/bin
-        go install honnef.co/go/tools/cmd/staticcheck@latest
+        go install honnef.co/go/tools/cmd/staticcheck@2020.2.1
         NEW=$GOPATH/src/github.com/digitalocean/go-openvswitch
         mkdir -p $NEW
         cp -r ./* $NEW
         cd $NEW
         go mod download
         go get golang.org/x/lint/golint
-        go get honnef.co/go/tools/cmd/staticcheck
         go get -d ./...
         echo "=========START LICENSE CHECK============"
         ./scripts/licensecheck.sh

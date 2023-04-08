@@ -1058,6 +1058,120 @@ NXST_FLOW reply (xid=0x4):
 	}
 }
 
+func TestClientOpenFlowDumpFlows15(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		flows string
+		want  []*Flow
+		err   error
+	}{
+		{
+			name:  "test single flow",
+			input: "br0",
+			flows: `OFPST_FLOW reply (OF1.5) (xid=0x2):
+ cookie=0x0, duration=82301.183s, table=0, n_packets=1127501, n_bytes=1595250938, idle_age=0, priority=100,ct_state=-trk,ip actions=ct(table=1)
+`,
+			want: []*Flow{
+				{
+					Priority: 100,
+					Protocol: ProtocolIPv4,
+					Matches: []Match{
+						ConnectionTrackingState(UnsetState(CTStateTracked)),
+					},
+					Table: 0,
+					Actions: []Action{
+						ConnectionTracking("table=1"),
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			name:  "test multiple flows",
+			input: "br0",
+			flows: `OFPST_FLOW reply (OF1.5) (xid=0x2):
+ cookie=0x0, duration=82301.183s, table=0, n_packets=1127501, n_bytes=1595250938, idle_age=0, priority=100,ct_state=-trk,ip actions=ct(table=1)
+ cookie=0x0, duration=82301.183s, table=0, n_packets=7370490, n_bytes=893401420, idle_age=0, priority=0 actions=NORMAL
+ cookie=0x0, duration=82301.183s, table=100, n_packets=1068, n_bytes=388186, idle_age=3191, priority=1000,udp,tp_dst=53 actions=ct(commit),NORMAL
+`,
+			want: []*Flow{
+				{
+					Priority: 100,
+					Protocol: ProtocolIPv4,
+					Matches: []Match{
+						ConnectionTrackingState(UnsetState(CTStateTracked)),
+					},
+					Table: 0,
+					Actions: []Action{
+						ConnectionTracking("table=1"),
+					},
+				},
+				{
+					Priority: 0,
+					Matches:  []Match{},
+					Table:    0,
+					Actions: []Action{
+						Normal(),
+					},
+				},
+				{
+					Priority: 1000,
+					Protocol: ProtocolUDPv4,
+					Matches: []Match{
+						TransportDestinationPort(53),
+					},
+					Table: 100,
+					Actions: []Action{
+						ConnectionTracking("commit"),
+						Normal(),
+					},
+				},
+			},
+			err: nil,
+		},
+	}
+
+	options := []OptionFunc{
+		Protocols([]string{ProtocolOpenFlow15}),
+		Timeout(1),
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := testClient(options, func(cmd string, args ...string) ([]byte, error) {
+				if want, got := "ovs-ofctl", cmd; want != got {
+					t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+						want, got)
+				}
+				wantArgs := []string{
+					"--timeout=1",
+					"dump-flows",
+					string(tt.input),
+					"--protocols=OpenFlow15",
+				}
+				if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+					t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+						want, got)
+				}
+				return []byte(tt.flows), tt.err
+			}).OpenFlow.DumpFlows(tt.input)
+			if len(tt.want) != len(got) {
+				t.Errorf("got  %d", len(got))
+				t.Errorf("want %d", len(tt.want))
+				t.Fatal("expected return value to be equal")
+			}
+			for i := range tt.want {
+				if !flowsEqual(tt.want[i], got[i]) {
+					t.Errorf("got  %v", got[i])
+					t.Errorf("want %v", tt.want[i])
+					t.Fatal("expected return value to be equal")
+				}
+			}
+		})
+	}
+}
+
 func mustVerifyFlowBundle(t *testing.T, stdin io.Reader, flows []*Flow, matchFlows []*MatchFlow) {
 	s := bufio.NewScanner(stdin)
 	var gotFlows []*Flow
