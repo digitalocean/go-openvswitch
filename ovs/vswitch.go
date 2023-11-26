@@ -201,7 +201,8 @@ func (v *VSwitchSetService) Bridge(bridge string, options BridgeOptions) error {
 // An BridgeOptions enables configuration of a bridge.
 type BridgeOptions struct {
 	// Protocols specifies the OpenFlow protocols the bridge should use.
-	Protocols []string
+	Protocols    []string
+	DataPathType DataPathType
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -211,6 +212,10 @@ func (o BridgeOptions) slice() []string {
 
 	if len(o.Protocols) > 0 {
 		s = append(s, fmt.Sprintf("protocols=%s", strings.Join(o.Protocols, ",")))
+	}
+
+	if o.DataPathType != "" {
+		s = append(s, fmt.Sprintf("datapath_type=%s", o.DataPathType))
 	}
 
 	return s
