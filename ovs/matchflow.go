@@ -105,7 +105,7 @@ func (f *MatchFlow) MarshalText() ([]byte, error) {
 		b = append(b, ',')
 	}
 
-	if f.Cookie > 0 {
+	if f.Cookie > 0 || f.CookieMask > 0 {
 		// Hexadecimal cookies and masks are much easier to read.
 		b = append(b, cookie+"="...)
 		b = append(b, paddedHexUint64(f.Cookie)...)
