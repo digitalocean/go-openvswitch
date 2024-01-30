@@ -267,13 +267,21 @@ func (o *OpenFlowService) DumpTables(bridge string) ([]*Table, error) {
 	return tables, err
 }
 
-// DumpFlows retrieves statistics about all flows for the specified bridge.
+// DumpFlowsWithFlowArgs retrieves statistics about all flows for the specified bridge,
+// filtering on the specified flow(s), if provided.
 // If a table has no active flows and has not been used for a lookup or matched
 // by an incoming packet, it is filtered from the output.
-func (o *OpenFlowService) DumpFlows(bridge string) ([]*Flow, error) {
+// We neeed to add a Matchflow to filter the dumpflow results. For example filter based on table, cookie.
+func (o *OpenFlowService) DumpFlowsWithFlowArgs(bridge string, flow *MatchFlow) ([]*Flow, error) {
 	args := []string{"dump-flows", bridge}
 	args = append(args, o.c.ofctlFlags...)
-
+	if flow != nil {
+		fb, err := flow.MarshalText()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, string(fb))
+	}
 	out, err := o.exec(args...)
 	if err != nil {
 		return nil, err
@@ -296,6 +304,13 @@ func (o *OpenFlowService) DumpFlows(bridge string) ([]*Flow, error) {
 	})
 
 	return flows, err
+}
+
+// DumpFlows retrieves statistics about all flows for the specified bridge.
+// If a table has no active flows and has not been used for a lookup or matched
+// by an incoming packet, it is filtered from the output.
+func (o *OpenFlowService) DumpFlows(bridge string) ([]*Flow, error) {
+	return o.DumpFlowsWithFlowArgs(bridge, nil)
 }
 
 // DumpAggregate retrieves statistics about the specified flow attached to the

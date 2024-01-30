@@ -232,6 +232,24 @@ func TestMatchFlowMarshalText(t *testing.T) {
 			},
 			s: "udp,in_port=33,nw_dst=192.0.2.1,tp_dst=0xea60/0xffe0,table=55",
 		},
+		{
+			desc: "Test zero cookie match",
+			f: &MatchFlow{
+				Cookie:     0,
+				CookieMask: 0xffffffffffffffff,
+				Table:      45,
+			},
+			s: "cookie=0x0000000000000000/0xffffffffffffffff,table=45",
+		},
+		{
+			desc: "Test match any cookie",
+			f: &MatchFlow{
+				Cookie:     0,
+				CookieMask: 0,
+				Table:      45,
+			},
+			s: "table=45",
+		},
 	}
 
 	for _, tt := range tests {
