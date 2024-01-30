@@ -267,7 +267,8 @@ func (o *OpenFlowService) DumpTables(bridge string) ([]*Table, error) {
 	return tables, err
 }
 
-// DumpFlowsWithFlowArgs retrieves statistics about all flows for the specified bridge.
+// DumpFlowsWithFlowArgs retrieves statistics about all flows for the specified bridge,
+// filtering on the specified flow(s), if provided.
 // If a table has no active flows and has not been used for a lookup or matched
 // by an incoming packet, it is filtered from the output.
 // We neeed to add a Matchflow to filter the dumpflow results. For example filter based on table, cookie.
