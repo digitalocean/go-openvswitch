@@ -41,6 +41,14 @@ const (
 	InterfaceTypeVXLAN    InterfaceType = "vxlan"
 )
 
+// A DatapathType is a datapath type recognized by Open vSwitch.
+type DataPathType string
+
+// DataPathType constants which can be used in OVS configurations.
+const (
+	DataPathTypeNetDev DataPathType = "netdev"
+)
+
 // A PortAction is a port actions to change the port characteristics of the
 // specific port through the ModPort API.
 type PortAction string

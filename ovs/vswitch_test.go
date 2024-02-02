@@ -751,6 +751,13 @@ func TestBridgeOptions_slice(t *testing.T) {
 			},
 			out: []string{"protocols=OpenFlow10,OpenFlow11,OpenFlow12,OpenFlow13,OpenFlow14,OpenFlow15"},
 		},
+		{
+			desc: "with netdev datapath",
+			o: BridgeOptions{
+				DataPathType: DataPathTypeNetDev,
+			},
+			out: []string{"datapath_type=netdev"},
+		},
 	}
 
 	for _, tt := range tests {
