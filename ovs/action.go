@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -70,18 +71,28 @@ var (
 
 	// errLearnedNil is returned when Learn is called with a nil *LearnedFlow.
 	errLearnedNil = errors.New("learned flow for action learn is nil")
+
+	// errPopFieldEmpty is returned when Pop is called with field set to the empty string
+	errPopFieldEmpty = errors.New("field for action pop (pop:field syntax) is empty")
+
+	// errPushFieldEmpty is returned when Push is called with field set to the empty string
+	errPushFieldEmpty = errors.New("field for action push (push:field syntax) is empty")
 )
 
 // Action strings in lower case, as those are compared to the lower case letters
 // in parseAction().
 const (
-	actionAll       = "all"
-	actionDrop      = "drop"
-	actionFlood     = "flood"
-	actionInPort    = "in_port"
-	actionLocal     = "local"
-	actionNormal    = "normal"
-	actionStripVLAN = "strip_vlan"
+	actionAll           = "all"
+	actionDrop          = "drop"
+	actionFlood         = "flood"
+	actionInPort        = "in_port"
+	actionLocal         = "local"
+	actionNormal        = "normal"
+	actionStripVLAN     = "strip_vlan"
+	actionDecTTL        = "dec_ttl"
+	actionDecTTLNoParam = "dec_ttl()"
+	actionCTClear       = "ct_clear"
+	actionController    = "controller"
 )
 
 // An Action is a type which can be marshaled into an OpenFlow action. Actions can be
@@ -120,6 +131,12 @@ func (a *textAction) GoString() string {
 		return "ovs.Normal()"
 	case actionStripVLAN:
 		return "ovs.StripVLAN()"
+	case actionDecTTL, actionDecTTLNoParam:
+		return "ovs.DecTTL()"
+	case actionCTClear:
+		return "ovs.CTClear()"
+	case actionController:
+		return "ovs.Controller()"
 	default:
 		return fmt.Sprintf("// BUG(mdlayher): unimplemented OVS text action: %q", a.action)
 	}
@@ -178,6 +195,13 @@ func StripVLAN() Action {
 	}
 }
 
+// CTClear clears  connection  tracking  state  from  the  flow
+func CTClear() Action {
+	return &textAction{
+		action: actionCTClear,
+	}
+}
+
 // printf-style patterns for marshaling and unmarshaling actions.
 const (
 	patConnectionTracking          = "ct(%s)"
@@ -195,6 +219,12 @@ const (
 	patResubmitPort                = "resubmit:%s"
 	patResubmitPortTable           = "resubmit(%s,%s)"
 	patLearn                       = "learn(%s)"
+	patPush                        = "push:%s"
+	patPop                         = "pop:%s"
+	patGroup                       = "group:%d"
+	patBundle                      = "bundle(%s,%d,%s,ofport,members:%s)"
+	patDecTTL                      = "dec_ttl"
+	patDecTTLIds                   = "dec_ttl(%s)"
 )
 
 // ConnectionTracking sends a packet through the host's connection tracker.
@@ -446,7 +476,7 @@ func (a *outputFieldAction) GoString() string {
 // applies multipath link selection `algorithm` (with parameter `arg`)
 // to choose one of `n_links` output links numbered 0 through n_links
 // minus 1, and stores the link into `dst`, which must be a field or
-// subfield in the syntax described under ``Field Specifications’’
+// subfield in the syntax described under “Field Specifications’’
 // above.
 // https://www.openvswitch.org/support/dist-docs/ovs-actions.7.txt
 func Multipath(fields string, basis int, algorithm string, nlinks int, arg int, dst string) Action {
@@ -719,6 +749,253 @@ func (a *learnAction) MarshalText() ([]byte, error) {
 	return bprintf(patLearn, l), nil
 }
 
+// Push action pushes src on a general-purpose stack
+// If either string is empty, an error is returned.
+func Push(field string) Action {
+	return &pushAction{
+		field: field,
+	}
+}
+
+type pushAction struct {
+	field string
+}
+
+// GoString implements Action.
+func (a *pushAction) GoString() string {
+	return fmt.Sprintf("ovs.Push(%#v)", a.field)
+}
+
+// MarshalText implements Action.
+func (a *pushAction) MarshalText() ([]byte, error) {
+	if a.field == "" {
+		return nil, errPushFieldEmpty
+	}
+
+	return bprintf(patPush, a.field), nil
+}
+
+// Pop action pops  an entry off the stack into dst
+// If either string is empty, an error is returned.
+func Pop(field string) Action {
+	return &popAction{
+		field: field,
+	}
+}
+
+type popAction struct {
+	field string
+}
+
+// GoString implements Action.
+func (a *popAction) GoString() string {
+	return fmt.Sprintf("ovs.Pop(%#v)", a.field)
+}
+
+// MarshalText implements Action.
+func (a *popAction) MarshalText() ([]byte, error) {
+	if a.field == "" {
+		return nil, errPopFieldEmpty
+	}
+
+	return bprintf(patPop, a.field), nil
+}
+
+// Controller sends  the  packet  and  its metadata to an OpenFlow controller or controllers
+// encapsulated in an OpenFlow packet-in message overwrites the specified field with the specified value.
+func Controller(maxLen int, reason string, id int, userdata string, pause bool) Action {
+	if maxLen == 0 {
+		maxLen = 65535
+	}
+	return &controllerAction{
+		maxLen:   maxLen,
+		reason:   reason,
+		id:       id,
+		userdata: userdata,
+		pause:    pause,
+	}
+}
+
+type controllerAction struct {
+	maxLen   int
+	reason   string
+	id       int
+	userdata string
+	pause    bool
+}
+
+// GoString implements Action.
+func (a *controllerAction) GoString() string {
+
+	var buf strings.Builder
+	buf.WriteString("ovs.Controller(")
+	first := true
+	if a.maxLen != 65535 {
+		buf.WriteString(fmt.Sprintf("max_len=%d", a.maxLen))
+		first = false
+	}
+	if a.reason != "" {
+		if !first {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("reason=%s", a.reason))
+		first = false
+	}
+	if a.id != 0 {
+		if !first {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("id=%d", a.id))
+		first = false
+	}
+	if a.userdata != "" {
+		if !first {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("userdata=%s", a.userdata))
+		first = false
+	}
+	if a.pause {
+		if !first {
+			buf.WriteString(", ")
+		}
+		buf.WriteString("pause")
+		first = false
+	}
+	buf.WriteString(")")
+	return buf.String()
+}
+
+func (a *controllerAction) IsZero() bool {
+	return a.maxLen == 65535 && a.reason == "" && a.id == 0 && a.userdata == "" && !a.pause
+}
+
+func (a *controllerAction) OnlyMaxLen() bool {
+	return a.maxLen != 65535 && a.reason == "" && a.id == 0 && a.userdata == "" && !a.pause
+}
+
+// MarshalText implements Action.
+func (a *controllerAction) MarshalText() ([]byte, error) {
+	if a.IsZero() {
+		return bprintf("controller"), nil
+	}
+	if a.OnlyMaxLen() {
+		return bprintf("controller:%d", a.maxLen), nil
+	}
+	var buf strings.Builder
+	buf.WriteString("controller(")
+	first := true
+	if a.maxLen != 65535 {
+		buf.WriteString(fmt.Sprintf("max_len=%d", a.maxLen))
+		first = false
+	}
+	if a.reason != "" {
+		if !first {
+			buf.WriteString(",")
+		}
+		buf.WriteString(fmt.Sprintf("reason=%s", a.reason))
+		first = false
+	}
+	if a.id != 0 {
+		if !first {
+			buf.WriteString(",")
+		}
+		buf.WriteString(fmt.Sprintf("id=%d", a.id))
+		first = false
+	}
+	if a.userdata != "" {
+		if !first {
+			buf.WriteString(",")
+		}
+		buf.WriteString(fmt.Sprintf("userdata=%s", a.userdata))
+		first = false
+	}
+	if a.pause {
+		if !first {
+			buf.WriteString(",")
+		}
+		buf.WriteString("pause")
+		first = false
+	}
+	buf.WriteString(")")
+	return []byte(buf.String()), nil
+}
+
+// Group outputs  the packet to the OpenFlow group
+func Group(group int) Action {
+	return &groupAction{
+		group: group,
+	}
+}
+
+type groupAction struct {
+	group int
+}
+
+// GoString implements Action.
+func (a *groupAction) GoString() string {
+	return fmt.Sprintf("ovs.Group(%d)", a.group)
+}
+
+// MarshalText implements Action.
+func (a *groupAction) MarshalText() ([]byte, error) {
+	return bprintf(patGroup, a.group), nil
+}
+
+// Bundle action choose a port (a member) from a comma-separated OpenFlow
+// port list.  After selecting the port, bundle  outputs  to  it
+func Bundle(fields string, basis int, algorithm string, members ...int) Action {
+	return &bundleAction{
+		fields:    fields,
+		basis:     basis,
+		algorithm: algorithm,
+		members:   members,
+	}
+}
+
+type bundleAction struct {
+	fields    string
+	basis     int
+	algorithm string
+	members   []int
+}
+
+// GoString implements Action.
+func (a *bundleAction) GoString() string {
+	return fmt.Sprintf("ovs.Bundle(%s,%d,%s,ofport,members:%s)", a.fields, a.basis, a.algorithm,
+		formatIntArr(a.members, ", "))
+}
+
+// MarshalText implements Action.
+func (a *bundleAction) MarshalText() ([]byte, error) {
+	return bprintf(patBundle, a.fields, a.basis, a.algorithm,
+		formatIntArr(a.members, ",")), nil
+}
+
+// DecTTL decrement TTL of IPv4 packet or hop limit of IPv6 packet
+func DecTTL(ids ...int) Action {
+	return &decTTLAction{
+		ids: ids,
+	}
+}
+
+type decTTLAction struct {
+	ids []int
+}
+
+// GoString implements Action.
+func (a *decTTLAction) GoString() string {
+	return fmt.Sprintf("ovs.DecTTL(%s)", formatIntArr(a.ids, ", "))
+}
+
+// MarshalText implements Action.
+func (a *decTTLAction) MarshalText() ([]byte, error) {
+	if len(a.ids) == 0 {
+		return bprintf(patDecTTL), nil
+	}
+	return bprintf(patDecTTLIds, formatIntArr(a.ids, ",")), nil
+}
+
 // validARPOP indicates if an ARP OP is out of range. It should be in the range
 // 1-4.
 func validARPOP(op uint16) bool {
@@ -741,4 +1018,16 @@ func validVLANVID(vid int) bool {
 // for a VLAN VID.
 func validVLANPCP(pcp int) bool {
 	return pcp >= 0 && pcp <= 7
+}
+
+// formatIntArr return a comma separate string for an int array
+func formatIntArr(arr []int, sep string) string {
+	var buf strings.Builder
+	for idx, i := range arr {
+		if idx != 0 {
+			buf.WriteString(sep)
+		}
+		buf.WriteString(strconv.Itoa(i))
+	}
+	return buf.String()
 }
