@@ -71,8 +71,9 @@ type flowDirective struct {
 
 // Possible flowDirective directive values.
 const (
-	dirAdd    = "add"
-	dirDelete = "delete"
+	dirAdd          = "add"
+	dirDelete       = "delete"
+	dirDeleteStrict = "delete_strict"
 )
 
 // Add pushes zero or more Flows on to the transaction, to be added by
@@ -105,6 +106,21 @@ func (tx *FlowTransaction) Delete(flows ...*MatchFlow) {
 	}
 
 	tx.push(dirDelete, tms...)
+}
+
+// DeleteStrict is almost the same as Delete, except that the matching process
+// will be strict.
+func (tx *FlowTransaction) DeleteStrict(flows ...*MatchFlow) {
+	if tx.err != nil {
+		return
+	}
+
+	tms := make([]encoding.TextMarshaler, 0, len(flows))
+	for _, f := range flows {
+		tms = append(tms, f)
+	}
+
+	tx.push(dirDeleteStrict, tms...)
 }
 
 // push pushes zero or more encoding.TextMarshalers on to the transaction
