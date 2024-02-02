@@ -464,6 +464,13 @@ func parseEach(in []byte, prefix []byte, fn func(b []byte) error) error {
 	// Scan every two lines to retrieve information needed to unmarshal
 	// a single PortStats struct.
 	for scanner.Scan() {
+
+		// After 630 ports the DumpPortsPrefix is shown again.
+		// Detect here to discover if we need to continue the loop.
+		if bytes.HasPrefix(scanner.Bytes(), prefix) {
+			continue
+		}
+
 		b := make([]byte, len(scanner.Bytes()))
 		copy(b, scanner.Bytes())
 
