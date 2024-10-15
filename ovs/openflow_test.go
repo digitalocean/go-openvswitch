@@ -1343,3 +1343,199 @@ func mustVerifyFlowBundle(t *testing.T, stdin io.Reader, flows []*Flow, matchFlo
 		}
 	}
 }
+
+func TestClientOpenFlowDumpFlowStatsWithFlowArgsInterfaceNames(t *testing.T) {
+	tests := []struct {
+		name       string
+		table      string
+		cookie     uint64
+		cookieMask uint64
+		input      string
+		flows      string
+		want       []*PerFlowStats
+		err        error
+	}{
+		{
+			name:       "test single flow",
+			input:      "br0",
+			table:      "45",
+			cookie:     0,
+			cookieMask: 0x0,
+			flows: `NXST_FLOW reply (xid=0x4):
+ cookie=0x01, duration=9215.748s, table=45, n_packets=6, n_bytes=480, idle_age=9206, priority=820,in_port=LOCAL actions=mod_vlan_vid:10,output:1
+`,
+			want: []*PerFlowStats{
+				{
+					InPort: PortLOCAL,
+					Table:  45,
+					Cookie: 1,
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
+				},
+			},
+			err: nil,
+		},
+		{
+			name:       "test multiple flows",
+			input:      "br0",
+			table:      "45",
+			cookie:     0,
+			cookieMask: 0x1,
+			flows: `NXST_FLOW reply (xid=0x4):
+ cookie=0x0, duration=9215.748s, table=45, n_packets=6, n_bytes=480, idle_age=9206, priority=820,in_port=LOCAL actions=mod_vlan_vid:10,output:1
+ cookie=0x0, duration=1121991.329s, table=45, n_packets=0, n_bytes=0, priority=110,ip,dl_src=f1:f2:f3:f4:f5:f6 actions=ct(table=51)
+ cookie=0x0, duration=9215.748s, table=45, n_packets=56, n_bytes=1480, idle_age=9206, priority=820,in_port=eth0 actions=mod_vlan_vid:10,output:1
+`,
+			want: []*PerFlowStats{
+				{
+					InPort: PortLOCAL,
+					Table:  45,
+					Cookie: 0,
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
+				},
+				{
+					Protocol: ProtocolIPv4,
+					Table:    45,
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
+					},
+				},
+				{
+					IfName: "eth0",
+					Table:  45,
+					Cookie: 0,
+					Stats: FlowStats{
+						PacketCount: 56,
+						ByteCount:   1480,
+					},
+				},
+			},
+			err: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+				if want, got := "ovs-ofctl", cmd; want != got {
+					t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+						want, got)
+				}
+				filterArg := "cookie=0x0000000000000000/0xffffffffffffffff," + "table=" + tt.table
+				wantArgs := []string{
+					"--timeout=1",
+					"dump-flows",
+					string(tt.input),
+					"--names",
+					filterArg,
+				}
+				if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+					t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+						want, got)
+				}
+				return []byte(tt.flows), tt.err
+			}).OpenFlow.DumpFlowStatsWithFlowArgs(tt.input, &MatchFlow{Cookie: 0,
+				CookieMask: 0xffffffffffffffff,
+				Table:      45}, true)
+			if len(tt.want) != len(got) {
+				t.Errorf("got  %d", len(got))
+				t.Errorf("want %d", len(tt.want))
+				t.Fatal("expected return value to be equal")
+			}
+			for i := range tt.want {
+				if !perflowstatsEqual(tt.want[i], got[i]) {
+					t.Errorf("got  %+v", got[i])
+					t.Errorf("want %+v", tt.want[i])
+					t.Fatal("expected return value to be equal")
+				}
+			}
+		})
+	}
+}
+
+func TestClientOpenFlowDumpFlowStatsWithFlowArgsPortNumbers(t *testing.T) {
+	tests := []struct {
+		name       string
+		table      string
+		cookie     uint64
+		cookieMask uint64
+		input      string
+		flows      string
+		want       []*PerFlowStats
+		err        error
+	}{
+		{
+			name:       "test multiple flows",
+			input:      "br0",
+			table:      "45",
+			cookie:     0,
+			cookieMask: 0x1,
+			flows: `NXST_FLOW reply (xid=0x4):
+ cookie=0x0, duration=9215.748s, table=45, n_packets=6, n_bytes=480, idle_age=9206, priority=820,in_port=LOCAL actions=mod_vlan_vid:10,output:1
+ cookie=0x0, duration=9215.748s, table=45, n_packets=56, n_bytes=1480, idle_age=9206, priority=820,in_port=20 actions=mod_vlan_vid:10,output:1
+`,
+			want: []*PerFlowStats{
+				{
+					InPort: PortLOCAL,
+					Table:  45,
+					Cookie: 0,
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
+				},
+				{
+					InPort: 20,
+					Table:  45,
+					Cookie: 0,
+					Stats: FlowStats{
+						PacketCount: 56,
+						ByteCount:   1480,
+					},
+				},
+			},
+			err: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _ := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+				if want, got := "ovs-ofctl", cmd; want != got {
+					t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+						want, got)
+				}
+				filterArg := "cookie=0x0000000000000000/0xffffffffffffffff," + "table=" + tt.table
+				wantArgs := []string{
+					"--timeout=1",
+					"dump-flows",
+					string(tt.input),
+					filterArg,
+				}
+				if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+					t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+						want, got)
+				}
+				return []byte(tt.flows), tt.err
+			}).OpenFlow.DumpFlowStatsWithFlowArgs(tt.input, &MatchFlow{Cookie: 0,
+				CookieMask: 0xffffffffffffffff,
+				Table:      45}, false)
+			if len(tt.want) != len(got) {
+				t.Errorf("got  %d", len(got))
+				t.Errorf("want %d", len(tt.want))
+				t.Fatal("expected return value to be equal")
+			}
+			for i := range tt.want {
+				if !perflowstatsEqual(tt.want[i], got[i]) {
+					t.Errorf("got  %+v", got[i])
+					t.Errorf("want %+v", tt.want[i])
+					t.Fatal("expected return value to be equal")
+				}
+			}
+		})
+	}
+}

@@ -1313,3 +1313,73 @@ func flowErrorEqual(a error, b error) bool {
 
 	return reflect.DeepEqual(fa, fb)
 }
+
+// perflowstatsEqual determines if two possible PerFlowStats are equal.
+func perflowstatsEqual(a *PerFlowStats, b *PerFlowStats) bool {
+	// Special case: both nil is OK
+	if a == nil && b == nil {
+		return true
+	}
+
+	return reflect.DeepEqual(a, b)
+}
+
+func TestPerFlowStatsUnmarshalText(t *testing.T) {
+	var tests = []struct {
+		desc string
+		s    string
+		f    *PerFlowStats
+		err  error
+	}{
+		{
+			desc: "empty Flow string, need actions fields",
+			err: &FlowError{
+				Err: errNoActions,
+			},
+		},
+		{
+			desc: "Flow string with interface name",
+			s:    "priority=10,in_port=eth0,table=0,actions=drop",
+			f: &PerFlowStats{
+				InPort: 0,
+				IfName: "eth0",
+				Table:  0,
+			},
+		},
+		{
+			desc: "Flow string with flow stats",
+			s:    "n_packets=13256, n_bytes=1287188, priority=10,in_port=eth0,table=0,actions=drop",
+			f: &PerFlowStats{
+				InPort: 0,
+				IfName: "eth0",
+				Table:  0,
+				Stats: FlowStats{
+					PacketCount: 13256,
+					ByteCount:   1287188,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			f := new(PerFlowStats)
+			err := f.UnmarshalText([]byte(tt.s))
+
+			// Need temporary strings to avoid nil pointer dereference
+			// panics when checking Error method.
+			if want, got := tt.err, err; !flowErrorEqual(want, got) {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.f, f; !perflowstatsEqual(want, got) {
+				t.Fatalf("unexpected Flow:\n- want: %#v\n-  got: %#v",
+					want, got)
+			}
+		})
+	}
+}
