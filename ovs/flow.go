@@ -53,7 +53,7 @@ const (
 	ProtocolUDPv6  Protocol = "udp6"
 )
 
-// A Flow is an OpenFlow flow meant for adding flows to a software bridge.  It can be marshaled
+// A Flow is an OpenFlow flow meant for adding/fetching flows to a software bridge.  It can be marshaled
 // to and from its textual form for use with Open vSwitch.
 type Flow struct {
 	Priority    int
@@ -64,6 +64,7 @@ type Flow struct {
 	IdleTimeout int
 	Cookie      uint64
 	Actions     []Action
+	Stats       FlowStats
 }
 
 // A LearnedFlow is defined as part of the Learn action.
@@ -80,16 +81,6 @@ type LearnedFlow struct {
 	FinHardTimeout int
 	HardTimeout    int
 	Limit          int
-}
-
-// A PerFlowStats is meant for fetching FlowStats per flow
-type PerFlowStats struct {
-	Protocol Protocol
-	InPort   int
-	Table    int
-	Cookie   uint64
-	IfName   string
-	Stats    FlowStats
 }
 
 var _ error = &FlowError{}
@@ -406,7 +397,29 @@ func (f *Flow) UnmarshalText(b []byte) error {
 			}
 			f.Table = int(table)
 			continue
-		case duration, nPackets, nBytes, hardAge, idleAge:
+		case nPackets:
+			// Parse nPackets into struct field.
+			pktCount, err := strconv.ParseUint(kv[1], 0, 64)
+			if err != nil {
+				return &FlowError{
+					Str: kv[1],
+					Err: err,
+				}
+			}
+			f.Stats.PacketCount = uint64(pktCount)
+			continue
+		case nBytes:
+			// Parse nBytes into struct field.
+			byteCount, err := strconv.ParseUint(kv[1], 0, 64)
+			if err != nil {
+				return &FlowError{
+					Str: kv[1],
+					Err: err,
+				}
+			}
+			f.Stats.ByteCount = uint64(byteCount)
+			continue
+		case duration, hardAge, idleAge:
 			// ignore those fields.
 			continue
 		}
@@ -443,120 +456,6 @@ func (f *Flow) UnmarshalText(b []byte) error {
 					Err: errActionsWithDrop,
 				}
 			}
-		}
-	}
-
-	return nil
-}
-
-// UnmarshalText unmarshals flows text into a PerFlowStats.
-func (f *PerFlowStats) UnmarshalText(b []byte) error {
-	// Make a copy per documentation for encoding.TextUnmarshaler.
-	// A string is easier to work with in this case.
-	s := string(b)
-
-	// Must have one and only one actions=... field in the flow.
-	ss := strings.Split(s, keyActions+"=")
-	if len(ss) != 2 || ss[1] == "" {
-		return &FlowError{
-			Err: errNoActions,
-		}
-	}
-	if len(ss) < 2 {
-		return &FlowError{
-			Err: errNotEnoughElements,
-		}
-	}
-	matchers := strings.TrimSpace(ss[0])
-
-	// Handle matchers first.
-	ss = strings.Split(matchers, ",")
-	for i := 0; i < len(ss); i++ {
-		if !strings.Contains(ss[i], "=") {
-			// that means this will be a protocol field.
-			if ss[i] != "" {
-				f.Protocol = Protocol(ss[i])
-			}
-			continue
-		}
-
-		// All remaining comma-separated values should be in key=value format
-		kv := strings.Split(ss[i], "=")
-		if len(kv) != 2 {
-			continue
-		}
-		kv[1] = strings.TrimSpace(kv[1])
-
-		switch strings.TrimSpace(kv[0]) {
-		case cookie:
-			// Parse cookie into struct field.
-			cookie, err := strconv.ParseUint(kv[1], 0, 64)
-			if err != nil {
-				return &FlowError{
-					Str: kv[1],
-					Err: err,
-				}
-			}
-			f.Cookie = cookie
-			continue
-		case inPort:
-			// Parse in_port into struct field.
-			s := kv[1]
-			if strings.TrimSpace(s) == portLOCAL {
-				f.InPort = PortLOCAL
-				continue
-			}
-			// Try to read as integer port numbers first
-			port, err := strconv.ParseInt(s, 10, 0)
-			if err != nil {
-				f.IfName = s
-			} else {
-				f.InPort = int(port)
-			}
-			continue
-		case table:
-			// Parse table into struct field.
-			table, err := strconv.ParseInt(kv[1], 10, 0)
-			if err != nil {
-				return &FlowError{
-					Str: kv[1],
-					Err: err,
-				}
-			}
-			f.Table = int(table)
-			continue
-		case nPackets:
-			// Parse nPackets into struct field.
-			pktCount, err := strconv.ParseUint(kv[1], 0, 64)
-			if err != nil {
-				return &FlowError{
-					Str: kv[1],
-					Err: err,
-				}
-			}
-			f.Stats.PacketCount = uint64(pktCount)
-			continue
-		case nBytes:
-			// Parse nBytes into struct field.
-			byteCount, err := strconv.ParseUint(kv[1], 0, 64)
-			if err != nil {
-				return &FlowError{
-					Str: kv[1],
-					Err: err,
-				}
-			}
-			f.Stats.ByteCount = uint64(byteCount)
-			continue
-		case duration, hardAge, idleAge, priority, idleTimeout, keyActions:
-			// ignore those fields.
-			continue
-		}
-
-		// All arbitrary key/value pairs that
-		// don't match the case above.
-		_, err := parseMatch(kv[0], kv[1])
-		if err != nil {
-			return err
 		}
 	}
 
