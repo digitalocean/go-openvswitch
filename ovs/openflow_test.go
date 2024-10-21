@@ -862,6 +862,10 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 						ModVLANVID(10),
 						Output(1),
 					},
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
 				},
 			},
 			err: nil,
@@ -886,6 +890,10 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 						ModVLANVID(10),
 						Output(1),
 					},
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
 				},
 				{
 					Priority: 110,
@@ -896,6 +904,10 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 					Table: 50,
 					Actions: []Action{
 						ConnectionTracking("table=51"),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 				{
@@ -912,6 +924,10 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 					Actions: []Action{
 						ConnectionTracking("commit,table=65"),
 					},
+					Stats: FlowStats{
+						PacketCount: 3,
+						ByteCount:   234,
+					},
 				},
 				{
 					Priority: 4040,
@@ -924,6 +940,10 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 					Table: 65,
 					Actions: []Action{
 						Output(19),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 				{
@@ -939,6 +959,10 @@ func TestClientOpenFlowDumpFlows(t *testing.T) {
 					Table: 12,
 					Actions: []Action{
 						Resubmit(0, 13),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 			},
@@ -965,6 +989,10 @@ NXST_FLOW reply (xid=0x4):
 						ModVLANVID(10),
 						Output(1),
 					},
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
 				},
 				{
 					Priority: 110,
@@ -975,6 +1003,10 @@ NXST_FLOW reply (xid=0x4):
 					Table: 50,
 					Actions: []Action{
 						ConnectionTracking("table=51"),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 				{
@@ -991,6 +1023,10 @@ NXST_FLOW reply (xid=0x4):
 					Actions: []Action{
 						ConnectionTracking("commit,table=65"),
 					},
+					Stats: FlowStats{
+						PacketCount: 3,
+						ByteCount:   234,
+					},
 				},
 				{
 					Priority: 4040,
@@ -1003,6 +1039,10 @@ NXST_FLOW reply (xid=0x4):
 					Table: 65,
 					Actions: []Action{
 						Output(19),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 				{
@@ -1018,6 +1058,10 @@ NXST_FLOW reply (xid=0x4):
 					Table: 12,
 					Actions: []Action{
 						Resubmit(0, 13),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 			},
@@ -1089,6 +1133,10 @@ func TestClientOpenFlowDumpFlowsWithFlowArgs(t *testing.T) {
 						ModVLANVID(10),
 						Output(1),
 					},
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
 				},
 			},
 			err: nil,
@@ -1114,6 +1162,10 @@ func TestClientOpenFlowDumpFlowsWithFlowArgs(t *testing.T) {
 						ModVLANVID(10),
 						Output(1),
 					},
+					Stats: FlowStats{
+						PacketCount: 6,
+						ByteCount:   480,
+					},
 				},
 				{
 					Priority: 110,
@@ -1124,6 +1176,10 @@ func TestClientOpenFlowDumpFlowsWithFlowArgs(t *testing.T) {
 					Table: 45,
 					Actions: []Action{
 						ConnectionTracking("table=51"),
+					},
+					Stats: FlowStats{
+						PacketCount: 0,
+						ByteCount:   0,
 					},
 				},
 			},
@@ -1193,6 +1249,10 @@ func TestClientOpenFlowDumpFlows15(t *testing.T) {
 					Actions: []Action{
 						ConnectionTracking("table=1"),
 					},
+					Stats: FlowStats{
+						PacketCount: 1127501,
+						ByteCount:   1595250938,
+					},
 				},
 			},
 			err: nil,
@@ -1216,6 +1276,10 @@ func TestClientOpenFlowDumpFlows15(t *testing.T) {
 					Actions: []Action{
 						ConnectionTracking("table=1"),
 					},
+					Stats: FlowStats{
+						PacketCount: 1127501,
+						ByteCount:   1595250938,
+					},
 				},
 				{
 					Priority: 0,
@@ -1223,6 +1287,10 @@ func TestClientOpenFlowDumpFlows15(t *testing.T) {
 					Table:    0,
 					Actions: []Action{
 						Normal(),
+					},
+					Stats: FlowStats{
+						PacketCount: 7370490,
+						ByteCount:   893401420,
 					},
 				},
 				{
@@ -1235,6 +1303,10 @@ func TestClientOpenFlowDumpFlows15(t *testing.T) {
 					Actions: []Action{
 						ConnectionTracking("commit"),
 						Normal(),
+					},
+					Stats: FlowStats{
+						PacketCount: 1068,
+						ByteCount:   388186,
 					},
 				},
 			},

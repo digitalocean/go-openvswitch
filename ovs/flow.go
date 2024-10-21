@@ -53,7 +53,7 @@ const (
 	ProtocolUDPv6  Protocol = "udp6"
 )
 
-// A Flow is an OpenFlow flow meant for adding flows to a software bridge.  It can be marshaled
+// A Flow is an OpenFlow flow meant for adding/fetching flows to a software bridge.  It can be marshaled
 // to and from its textual form for use with Open vSwitch.
 type Flow struct {
 	Priority    int
@@ -64,6 +64,7 @@ type Flow struct {
 	IdleTimeout int
 	Cookie      uint64
 	Actions     []Action
+	Stats       FlowStats
 }
 
 // A LearnedFlow is defined as part of the Learn action.
@@ -396,7 +397,29 @@ func (f *Flow) UnmarshalText(b []byte) error {
 			}
 			f.Table = int(table)
 			continue
-		case duration, nPackets, nBytes, hardAge, idleAge:
+		case nPackets:
+			// Parse nPackets into struct field.
+			pktCount, err := strconv.ParseUint(kv[1], 0, 64)
+			if err != nil {
+				return &FlowError{
+					Str: kv[1],
+					Err: err,
+				}
+			}
+			f.Stats.PacketCount = uint64(pktCount)
+			continue
+		case nBytes:
+			// Parse nBytes into struct field.
+			byteCount, err := strconv.ParseUint(kv[1], 0, 64)
+			if err != nil {
+				return &FlowError{
+					Str: kv[1],
+					Err: err,
+				}
+			}
+			f.Stats.ByteCount = uint64(byteCount)
+			continue
+		case duration, hardAge, idleAge:
 			// ignore those fields.
 			continue
 		}

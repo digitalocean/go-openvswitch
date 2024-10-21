@@ -785,6 +785,10 @@ func TestFlowUnmarshalText(t *testing.T) {
 					ModVLANVID(10),
 					Output(1),
 				},
+				Stats: FlowStats{
+					PacketCount: 6,
+					ByteCount:   480,
+				},
 			},
 		},
 		{
@@ -818,6 +822,10 @@ func TestFlowUnmarshalText(t *testing.T) {
 				Table: 51,
 				Actions: []Action{
 					ConnectionTracking("commit,table=65"),
+				},
+				Stats: FlowStats{
+					PacketCount: 3,
+					ByteCount:   234,
 				},
 			},
 		},
