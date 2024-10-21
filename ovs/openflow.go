@@ -313,13 +313,6 @@ func (o *OpenFlowService) DumpFlows(bridge string) ([]*Flow, error) {
 	return o.DumpFlowsWithFlowArgs(bridge, nil)
 }
 
-// DumpMatchingFlows retrieves statistics of all matching flows for the specified bridge.
-// If a table has no active flows and has not been used for a lookup or matched
-// by an incoming packet, it is filtered from the output.
-func (o *OpenFlowService) DumpMatchingFlows(bridge string, flow *MatchFlow) ([]*Flow, error) {
-	return o.DumpFlowsWithFlowArgs(bridge, flow)
-}
-
 // DumpAggregate retrieves statistics about the specified flow attached to the
 // specified bridge.
 func (o *OpenFlowService) DumpAggregate(bridge string, flow *MatchFlow) (*FlowStats, error) {
