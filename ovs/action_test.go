@@ -767,6 +767,264 @@ func TestLearn(t *testing.T) {
 	}
 }
 
+func TestPopField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "pop OK",
+			a:      Pop("NXM_OF_IN_PORT[]"),
+			action: "pop:NXM_OF_IN_PORT[]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestPushField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "push OK",
+			a:      Push("NXM_NX_REG0[]"),
+			action: "push:NXM_NX_REG0[]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestDecTTLField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "dec_ttl OK",
+			a:      DecTTL(),
+			action: "dec_ttl",
+		},
+		{
+			desc:   "dec_ttl 1 id",
+			a:      DecTTL(1),
+			action: "dec_ttl(1)",
+		},
+		{
+			desc:   "dec_ttl 2 ids",
+			a:      DecTTL(1, 2),
+			action: "dec_ttl(1,2)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestControllerField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "controller plan",
+			a:      Controller(0, "", 0, "", false),
+			action: "controller",
+		},
+		{
+			desc:   "controller userdata",
+			a:      Controller(0, "", 0, "00.00.00.04.00.00.00.00", false),
+			action: "controller(userdata=00.00.00.04.00.00.00.00)",
+		},
+		{
+			desc:   "controller max_len",
+			a:      Controller(10, "", 0, "", false),
+			action: "controller:10",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestCTClearField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "ct_clear ok",
+			a:      CTClear(),
+			action: "ct_clear",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestGroupField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "group ok",
+			a:      Group(1),
+			action: "group:1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
+func TestBundleField(t *testing.T) {
+	var tests = []struct {
+		desc   string
+		a      Action
+		action string
+		err    error
+	}{
+		{
+			desc:   "bundle ok",
+			a:      Bundle("eth_src", 0, "active_backup", 149),
+			action: "bundle(eth_src,0,active_backup,ofport,members:149)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			action, err := tt.a.MarshalText()
+
+			if want, got := tt.err, err; want != got {
+				t.Fatalf("unexpected error:\n- want: %v\n-  got: %v",
+					want, got)
+			}
+			if err != nil {
+				return
+			}
+
+			if want, got := tt.action, string(action); want != got {
+				t.Fatalf("unexpected Action:\n- want: %q\n-  got: %q",
+					want, got)
+			}
+		})
+	}
+}
+
 func TestActionGoString(t *testing.T) {
 	tests := []struct {
 		a Action
@@ -859,12 +1117,88 @@ func TestActionGoString(t *testing.T) {
 			}),
 			s: `ovs.Learn(&ovs.LearnedFlow{Priority:0, InPort:0, Matches:[]ovs.Match{ovs.DataLinkType(0x0800)}, Table:0, IdleTimeout:0, Cookie:0x0, Actions:[]ovs.Action{ovs.OutputField("in_port")}, DeleteLearned:true, FinHardTimeout:10, HardTimeout:30, Limit:10})`,
 		},
+		{
+			a: Push("NXM_NX_REG0[]"),
+			s: `ovs.Push("NXM_NX_REG0[]")`,
+		},
+		{
+			a: Pop("NXM_NX_REG0[]"),
+			s: `ovs.Pop("NXM_NX_REG0[]")`,
+		},
+		{
+			a: DecTTL(1, 2),
+			s: `ovs.DecTTL(1, 2)`,
+		},
+		{
+			a: DecTTL(),
+			s: `ovs.DecTTL()`,
+		},
+		{
+			a: CTClear(),
+			s: `ovs.CTClear()`,
+		},
+		{
+			a: Group(5),
+			s: `ovs.Group(5)`,
+		},
+		{
+			a: Controller(0, "", 0, "00.00.00.0c.00.00.00.00.00.19.00.10.80.00.08.06.0e.27.b1.82.65.0c.00.00.00.19.00.18.80.00.34.10.fe.80.00.00.00.00.00.00.0c.27.b1.ff.fe.82.65.0c.00.19.00.18.80.00.3e.10.fe.80.00.00.00.00.00.00.0c.27.b1.ff.fe.82.65.0c.00.19.00.10.80.00.42.06.0e.27.b1.82.65.0c.00.00.00.1c.00.18.00.20.00.00.00.00.00.00.00.01.1c.04.00.01.1e.04.00.00.00.00.00.19.00.10.00.01.15.08.00.00.00.01.00.00.00.01.ff.ff.00.10.00.00.23.20.00.0e.ff.f8.25.00.00.00", false),
+			s: `ovs.Controller(userdata=00.00.00.0c.00.00.00.00.00.19.00.10.80.00.08.06.0e.27.b1.82.65.0c.00.00.00.19.00.18.80.00.34.10.fe.80.00.00.00.00.00.00.0c.27.b1.ff.fe.82.65.0c.00.19.00.18.80.00.3e.10.fe.80.00.00.00.00.00.00.0c.27.b1.ff.fe.82.65.0c.00.19.00.10.80.00.42.06.0e.27.b1.82.65.0c.00.00.00.1c.00.18.00.20.00.00.00.00.00.00.00.01.1c.04.00.01.1e.04.00.00.00.00.00.19.00.10.00.01.15.08.00.00.00.01.00.00.00.01.ff.ff.00.10.00.00.23.20.00.0e.ff.f8.25.00.00.00)`,
+		},
+		{
+			a: Controller(10, "", 0, "", false),
+			s: `ovs.Controller(max_len=10)`,
+		},
+		{
+			a: Bundle("eth_src", 0, "active_backup", 149),
+			s: `ovs.Bundle(eth_src,0,active_backup,ofport,members:149)`,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.s, func(t *testing.T) {
 			if want, got := tt.s, tt.a.GoString(); want != got {
 				t.Fatalf("unexpected Action Go syntax:\n- want: %v\n-  got: %v", want, got)
+			}
+		})
+	}
+}
+
+func Test_formatIntArr(t *testing.T) {
+	type arg struct {
+		arr []int
+		sep string
+	}
+	tests := []struct {
+		name string
+		arg  arg
+		want string
+	}{
+		{
+			"empty arr",
+			arg{arr: []int{}, sep: ","},
+			"",
+		},
+		{
+			"1 item",
+			arg{arr: []int{1}, sep: ","},
+			"1",
+		},
+		{
+			"2 item",
+			arg{arr: []int{1, 2}, sep: ","},
+			"1,2",
+		},
+		{
+			"2 item with space",
+			arg{arr: []int{1, 2}, sep: ", "},
+			"1, 2",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatIntArr(tt.arg.arr, tt.arg.sep); got != tt.want {
+				t.Errorf("formatIntArr() = %v, want %v", got, tt.want)
 			}
 		})
 	}

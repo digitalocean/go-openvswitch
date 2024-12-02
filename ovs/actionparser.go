@@ -146,27 +146,73 @@ func (s *stack) pop() {
 var (
 	// resubmitRe is the regex used to match the resubmit action
 	// with port and table specified
+	//Syntax:
+	//  resubmit([port],[table][,ct])
 	resubmitRe = regexp.MustCompile(`resubmit\((\d*),(\d*)\)`)
 
 	// resubmitPortRe is the regex used to match the resubmit action
 	// when only a port is specified
+	//Syntax:
+	//  resubmit:port
 	resubmitPortRe = regexp.MustCompile(`resubmit:(\d+)`)
 
 	// ctRe is the regex used to match the ct action with its
 	// parameter list.
+	//Syntax:
+	//	ct([argument]...)
+	//	ct(commit[,argument]...)
 	ctRe = regexp.MustCompile(`ct\((\S+)\)`)
 
 	// loadRe is the regex used to match the load action
 	// with its parameters.
+	//Syntax:
+	//  load:value->dst
 	loadRe = regexp.MustCompile(`load:(\S+)->(\S+)`)
 
 	// moveRe is the regex used to match the move action
 	// with its parameters.
+	//Syntax:
+	//  move:src->dst
 	moveRe = regexp.MustCompile(`move:(\S+)->(\S+)`)
 
 	// setFieldRe is the regex used to match the set_field action
 	// with its parameters.
+	//Syntax:
+	//  set_field:value[/mask]->dst
 	setFieldRe = regexp.MustCompile(`set_field:(\S+)->(\S+)`)
+
+	// popRe is the regex used to match the pop action
+	// with its parameters.
+	//Syntax:
+	//	pop:dst
+	popRe = regexp.MustCompile(`pop:(\S+)`)
+
+	// pushRe is the regex used to match the push action
+	// with its parameters.
+	//Syntax:
+	//	push:src
+	pushRe = regexp.MustCompile(`push:(\S+)`)
+
+	// controllerRe is the regex used to match the controller action
+	// with its parameters.
+	//Syntax:
+	//	controller
+	//	controller:max_len
+	//	controller(key[=value], ...)
+	controllerMaxLenRe = regexp.MustCompile(`controller:(\S+)`)
+	controllerParamRe  = regexp.MustCompile(`controller\((\S+)\)`)
+
+	// groupRe is the regex used to match the controller action
+	// with its parameters.
+	//Syntax:
+	//  group:group
+	groupRe = regexp.MustCompile(`group:(\S+)`)
+
+	// bundleRe is the regex used to match the controller action
+	// with its parameters.
+	//Syntax:
+	//  bundle(fields,basis,algorithm,ofport,members:port...)
+	bundleRe = regexp.MustCompile(`bundle\((\S+),(\S+),(\S+),ofport,members:(\S+)\)`)
 )
 
 // TODO(mdlayher): replace parsing regex with arguments parsers
@@ -187,6 +233,12 @@ func parseAction(s string) (Action, error) {
 		return Normal(), nil
 	case actionStripVLAN:
 		return StripVLAN(), nil
+	case actionDecTTL, actionDecTTLNoParam:
+		return DecTTL(), nil
+	case actionCTClear:
+		return CTClear(), nil
+	case actionController:
+		return Controller(0, "", 0, "", false), nil
 	}
 
 	// ActionCT, with its arguments
@@ -387,6 +439,112 @@ func parseAction(s string) (Action, error) {
 		//  - value
 		//  - field
 		return SetField(ss[0][1], ss[0][2]), nil
+	}
+
+	if ss := popRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 2 {
+		// Results are:
+		//  - full string
+		//  - field
+		return Pop(ss[0][1]), nil
+	}
+
+	if ss := pushRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 2 {
+		// Results are:
+		//  - full string
+		//  - field
+		return Push(ss[0][1]), nil
+	}
+
+	if ss := controllerMaxLenRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 2 {
+		// Results are:
+		//  - full string
+		//  - maxLen
+		maxLen, err := strconv.Atoi(ss[0][1])
+		if err != nil {
+			return nil, err
+		}
+		return Controller(maxLen, "", 0, "", false), nil
+	}
+
+	if ss := controllerParamRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 2 {
+		// Results are:
+		//  - full string
+		//  - options
+		var (
+			maxLen   int
+			id       int
+			reason   string
+			userdata string
+			pause    bool
+			err      error
+		)
+		arr := strings.Split(ss[0][1], ",")
+		for _, item := range arr {
+			if item == "pause" {
+				pause = true
+			} else if strings.Contains(item, "=") {
+				kv := strings.Split(item, "=")
+				if len(kv) != 2 {
+					return nil, fmt.Errorf("invalid controller option: %s", item)
+				}
+				key := kv[0]
+				val := kv[1]
+				switch key {
+				case "maxLen":
+					maxLen, err = strconv.Atoi(val)
+					if err != nil {
+						return nil, err
+					}
+				case "id":
+					id, err = strconv.Atoi(val)
+					if err != nil {
+						return nil, err
+					}
+				case "reason":
+					reason = val
+				case "userdata":
+					userdata = val
+				}
+			}
+		}
+		return Controller(maxLen, reason, id, userdata, pause), nil
+	}
+
+	if ss := groupRe.FindAllStringSubmatch(s, 1); len(ss) > 0 && len(ss[0]) == 2 {
+		// Results are:
+		//  - full string
+		//  - value
+		group, err := strconv.Atoi(ss[0][1])
+		if err != nil {
+			return nil, err
+		}
+		return Group(group), nil
+	}
+
+	if ss := bundleRe.FindAllStringSubmatch(s, 4); len(ss) > 0 && len(ss[0]) == 5 {
+		// Results are:
+		//  - full string
+		//  - fields
+		//  - basis
+		//  - algorithm
+		//  - ports(comma sep)
+		fields := ss[0][1]
+		rawBasis := ss[0][2]
+		algorithm := ss[0][3]
+		rawPorts := ss[0][4]
+		basis, err := strconv.Atoi(rawBasis)
+		if err != nil {
+			return nil, err
+		}
+		var ports []int
+		for _, p := range strings.Split(rawPorts, ",") {
+			port, err := strconv.Atoi(p)
+			if err != nil {
+				return nil, err
+			}
+			ports = append(ports, port)
+		}
+		return Bundle(fields, basis, algorithm, ports...), nil
 	}
 
 	return nil, fmt.Errorf("no action matched for %q", s)
