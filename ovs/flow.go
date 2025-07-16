@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -65,6 +66,7 @@ type Flow struct {
 	Cookie      uint64
 	Actions     []Action
 	Stats       FlowStats
+	Duration    int
 }
 
 // A LearnedFlow is defined as part of the Learn action.
@@ -419,7 +421,17 @@ func (f *Flow) UnmarshalText(b []byte) error {
 			}
 			f.Stats.ByteCount = uint64(byteCount)
 			continue
-		case duration, hardAge, idleAge:
+		case duration:
+			// Parse duration into struct field.
+			duration, err := time.ParseDuration(kv[1])
+			if err != nil {
+				return &FlowError{
+					Str: kv[1],
+					Err: err,
+				}
+			}
+			f.Duration = int(duration.Seconds())
+		case hardAge, idleAge:
 			// ignore those fields.
 			continue
 		}

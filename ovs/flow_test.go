@@ -793,6 +793,7 @@ func TestFlowUnmarshalText(t *testing.T) {
 					PacketCount: 6,
 					ByteCount:   480,
 				},
+				Duration: 9215,
 			},
 		},
 		{
@@ -808,6 +809,7 @@ func TestFlowUnmarshalText(t *testing.T) {
 				Actions: []Action{
 					ConnectionTracking("table=51"),
 				},
+				Duration: 1121991,
 			},
 		},
 		{
@@ -831,6 +833,7 @@ func TestFlowUnmarshalText(t *testing.T) {
 					PacketCount: 3,
 					ByteCount:   234,
 				},
+				Duration: 83229,
 			},
 		},
 		{
@@ -851,6 +854,7 @@ func TestFlowUnmarshalText(t *testing.T) {
 				Actions: []Action{
 					ConnectionTracking("commit,table=65,exec(load:0x1fb5fce->NXM_NX_CT_MARK[])"),
 				},
+				Duration: 920420,
 			},
 		},
 		{
@@ -870,6 +874,7 @@ func TestFlowUnmarshalText(t *testing.T) {
 				Actions: []Action{
 					Resubmit(0, 13),
 				},
+				Duration: 13,
 			},
 		},
 		{
@@ -888,6 +893,7 @@ func TestFlowUnmarshalText(t *testing.T) {
 				Actions: []Action{
 					Output(19),
 				},
+				Duration: 1381314,
 			},
 		},
 		{
