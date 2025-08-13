@@ -37,7 +37,8 @@ type Client struct {
 	// Datapath provides access to DatapathService methods.
 	Datapath *DatapathService
 
-	c *genetlink.Conn
+	c         *genetlink.Conn
+	Conntrack *ConntrackService
 }
 
 // New creates a new Linux Open vSwitch generic netlink client.
@@ -45,12 +46,36 @@ type Client struct {
 // If no OvS generic netlink families are available on this system, an
 // error will be returned which can be checked using os.IsNotExist.
 func New() (*Client, error) {
-	c, err := genetlink.Dial(nil)
+	c := &Client{} // Create client instance first
+
+	// Initialize the underlying genetlink connection.
+	conn, err := genetlink.Dial(nil)
 	if err != nil {
 		return nil, err
 	}
+	c.c = conn
 
-	return newClient(c)
+	// Initialize services.
+	families, err := c.c.ListFamilies()
+	if err != nil {
+		_ = c.c.Close()
+		return nil, err
+	}
+
+	if err := c.init(families); err != nil {
+		_ = c.c.Close()
+		return nil, err
+	}
+
+	// Initialize ConntrackService directly, as it manages its own internal conntrack.Conn
+	conntrackService, err := NewConntrackService() // This will establish ti-mo/conntrack's connection
+	if err != nil {
+		_ = c.c.Close() // Ensure main client connection is closed
+		return nil, fmt.Errorf("failed to create ConntrackService: %w", err)
+	}
+	c.Conntrack = conntrackService
+
+	return c, nil
 }
 
 // newClient is the internal Client constructor, used in tests.
@@ -75,7 +100,21 @@ func newClient(c *genetlink.Conn) (*Client, error) {
 
 // Close closes the Client's generic netlink connection.
 func (c *Client) Close() error {
-	return c.c.Close()
+	var errs []error
+	if c.c != nil {
+		if err := c.c.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if c.Conntrack != nil {
+		if err := c.Conntrack.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("errors closing client: %v", errs)
+	}
+	return nil
 }
 
 // init initializes the generic netlink family service of Client.
@@ -83,18 +122,24 @@ func (c *Client) init(families []genetlink.Family) error {
 	var gotf int
 
 	for _, f := range families {
-		// Ignore any families without the OVS prefix.
-		if !strings.HasPrefix(f.Name, "ovs_") {
-			continue
-		}
-		// Ignore any families that might be unknown.
-		if err := c.initFamily(f); err != nil {
+		// Initialize OVS-specific families
+		if strings.HasPrefix(f.Name, "ovs_") {
+			if err := c.initFamily(f); err != nil {
+				// Log but continue if an OVS family fails to init
+				fmt.Printf("Warning: failed to initialize OVS family %q: %v\n", f.Name, err)
+				continue
+			}
+		} else if f.Name == "nf_conntrack" { // Explicitly initialize for Netfilter conntrack family
+			// The ConntrackService is initialized separately by NewConntrackService(),
+			// so we just acknowledge this family exists.
+			// No direct assignment to c.Conntrack here because it manages its own connection.
+		} else {
+			// Skip other non-OVS/non-conntrack families
 			continue
 		}
 		gotf++
 	}
 
-	// No known families; return error for os.IsNotExist check.
 	if gotf == 0 {
 		return os.ErrNotExist
 	}
