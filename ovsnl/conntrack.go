@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build linux
+// +build linux
+
 package ovsnl
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"log"
 	"net"
-	"os"
-	"strings"
-	"syscall"
+	"runtime"
+	"sync"
 
-	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/ti-mo/conntrack"
-	"golang.org/x/sys/unix"
+	"github.com/ti-mo/netfilter"
 )
 
 // ConntrackEntry represents a single connection tracking entry from the kernel.
-// This struct remains consistent with what your exporter expects.
 type ConntrackEntry struct {
 	Protocol   string // "tcp", "udp", "icmp" etc.
 	OrigSrc    net.IP
@@ -45,175 +45,257 @@ type ConntrackEntry struct {
 	State      string
 }
 
-// ConntrackService manages the connection to the kernel's conntrack via Netlink.
-type ConntrackService struct {
-	client *conntrack.Conn // The client from github.com/ti-mo/conntrack
+// ZoneStats holds statistics for a zone
+type ZoneStats struct {
+	TotalCount int
+	Entries    []ConntrackEntry // Only populated if TotalCount > threshold
 }
 
-// NewConntrackService creates a new ConntrackService.
-// This function establishes the Netlink connection to the kernel's conntrack subsystem.
-func NewConntrackService() (*ConntrackService, error) {
-	// Try to establish netlink connection with retries
-	nfct, err := conntrack.Dial(nil)
+// ConntrackPerformanceStats represents aggregated performance counters from all CPUs
+type ConntrackPerformanceStats struct {
+	TotalFound         uint32
+	TotalInvalid       uint32
+	TotalIgnore        uint32
+	TotalInsert        uint32
+	TotalInsertFailed  uint32
+	TotalDrop          uint32
+	TotalEarlyDrop     uint32
+	TotalError         uint32
+	TotalSearchRestart uint32
+	CPUs               int
+}
+
+// ConntrackService manages the connection to the kernel's conntrack via Netlink.
+type ConntrackService struct {
+	// No persistent client - connections created as needed
+}
+
+// ZoneMarkAggregator keeps live counts (zone -> mark -> count).
+type ZoneMarkAggregator struct {
+	mu        sync.RWMutex
+	counts    map[uint16]map[uint32]int
+	listenCli *conntrack.Conn // Separate connection for listening to events
+	stopCh    chan struct{}
+	stoppedCh chan struct{}
+}
+
+// NewZoneMarkAggregator creates a new aggregator with its own listening connection.
+func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
+	// Create a separate connection for listening to events
+	listenCli, err := conntrack.Dial(nil)
 	if err != nil {
-		switch {
-		case os.IsPermission(err):
-			return nil, fmt.Errorf("permission denied accessing netlink socket (are you root?): %w", err)
-		case errors.Is(err, syscall.ENOENT):
-			return nil, fmt.Errorf("conntrack module not loaded in kernel: %w", err)
-		case errors.Is(err, syscall.EPROTONOSUPPORT):
-			return nil, fmt.Errorf("netlink protocol not supported: %w", err)
-		case errors.Is(err, syscall.ENOMEM):
-			return nil, fmt.Errorf("kernel failed to allocate memory for netlink: %w", err)
-		default:
-			return nil, fmt.Errorf("failed to dial conntrack netlink: %w", err)
-		}
+		return nil, fmt.Errorf("failed to create listening connection: %w", err)
 	}
 
-	// Verify connection is working by attempting a statistics query
-	_, err = nfct.Stats()
-	if err != nil {
-		nfct.Close()
-		return nil, fmt.Errorf("failed to verify netlink connection: %w", err)
-	}
-
-	return &ConntrackService{
-		client: nfct,
+	return &ZoneMarkAggregator{
+		counts:    make(map[uint16]map[uint32]int),
+		listenCli: listenCli,
+		stopCh:    make(chan struct{}),
+		stoppedCh: make(chan struct{}),
 	}, nil
+}
+
+func NewConntrackService() (*ConntrackService, error) {
+	// Don't create a persistent connection - we'll create fresh connections as needed
+	// This avoids any interference with the aggregator's multicast connection
+	return &ConntrackService{}, nil
 }
 
 // Close closes the underlying Netlink connection for conntrack.
 func (s *ConntrackService) Close() error {
-	if s.client != nil {
-		return s.client.Close()
-	}
+	// No persistent connection to close
 	return nil
 }
 
-// List lists all conntrack entries from the kernel.
-// datapathName is not used in this direct Netlink query, as it's a global dump.
-// List lists all conntrack entries from the kernel.
-func (s *ConntrackService) List(ctx context.Context) ([]ConntrackEntry, error) {
-	// Add context support
-	if ctx == nil {
-		ctx = context.Background()
+// GetStats returns performance counters from the conntrack subsystem.
+// DISABLED: Stats collection is disabled due to multicast connection issues.
+// The exporter now uses nil for getStats to skip this functionality entirely.
+/*
+func (s *ConntrackService) GetStats() (*ConntrackPerformanceStats, error) {
+	// Try the ti-mo/conntrack library first
+	statsConn, err := conntrack.Dial(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial conntrack for stats: %w", err)
+	}
+	defer statsConn.Close()
+
+	stats, err := statsConn.Stats()
+	if err != nil {
+		// If we get the multicast error, return a minimal stats object
+		// This allows the exporter to continue functioning
+		if strings.Contains(err.Error(), "Conn attached to multicast group") {
+			log.Printf("Warning: Conntrack stats collection failed due to multicast issue, returning minimal stats")
+			return &ConntrackPerformanceStats{
+				CPUs: 1, // Default to 1 CPU
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to get conntrack stats: %w", err)
 	}
 
-	// Create a channel for the dump operation
-	flowChan := make(chan conntrack.Flow)
-	errChan := make(chan error, 1)
+	aggStats := &ConntrackPerformanceStats{
+		CPUs: len(stats),
+	}
 
-	// Start dump in goroutine
+	for _, stat := range stats {
+		aggStats.TotalFound += stat.Found
+		aggStats.TotalInvalid += stat.Invalid
+		aggStats.TotalIgnore += stat.Ignore
+		aggStats.TotalInsert += stat.Insert
+		aggStats.TotalInsertFailed += stat.InsertFailed
+		aggStats.TotalDrop += stat.Drop
+		aggStats.TotalEarlyDrop += stat.EarlyDrop
+		aggStats.TotalError += stat.Error
+		aggStats.TotalSearchRestart += stat.SearchRestart
+	}
+
+	return aggStats, nil
+}
+*/
+
+// Start subscribes to NEW and DESTROY events and maintains counts.
+func (a *ZoneMarkAggregator) Start() error {
+	events := make(chan conntrack.Event, 8192)
+
+	// Subscribe to ALL groups (NEW, UPDATE, DESTROY).
+	groups := []netfilter.NetlinkGroup{
+		netfilter.GroupCTNew,
+		netfilter.GroupCTDestroy,
+		netfilter.GroupCTUpdate,
+	}
+
+	errCh, err := a.listenCli.Listen(events, 2, groups) // 2 workers; tune as needed
+	if err != nil {
+		return err
+	}
+
+	// Watch for errors from workers
 	go func() {
-		defer close(flowChan)
-		flows, err := s.client.Dump(nil)
-		if err != nil {
-			errChan <- fmt.Errorf("failed to dump conntrack entries: %w", err)
-			return
-		}
-		for _, f := range flows {
+		for {
 			select {
-			case <-ctx.Done():
-				errChan <- ctx.Err()
+			case <-a.stopCh:
+				close(a.stoppedCh)
 				return
-			case flowChan <- f:
+			case e := <-errCh:
+				if e != nil {
+					log.Printf("conntrack listener error: %v", e)
+				}
+			case ev := <-events:
+				a.applyEvent(ev)
 			}
 		}
 	}()
 
-	var entries []ConntrackEntry
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case err := <-errChan:
-			if err != nil {
-				return nil, err
+	return nil
+}
+
+// Stop cancels listening and closes the connection.
+func (a *ZoneMarkAggregator) Stop() {
+	close(a.stopCh)
+	<-a.stoppedCh
+	if a.listenCli != nil {
+		a.listenCli.Close()
+	}
+}
+
+func (a *ZoneMarkAggregator) applyEvent(ev conntrack.Event) {
+	f := ev.Flow
+	zone := f.Zone
+	mark := f.Mark
+
+	// Debug: Log zone values to understand what the library is returning
+	if zone != 0 {
+		log.Printf("DEBUG: Event zone=%d, mark=%d, type=%d", zone, mark, ev.Type)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	zm, ok := a.counts[zone]
+	if !ok {
+		zm = make(map[uint32]int)
+		a.counts[zone] = zm
+	}
+
+	switch {
+	case ev.Type&conntrack.EventNew != 0:
+		zm[mark]++
+	case ev.Type&conntrack.EventDestroy != 0:
+		if zm[mark] > 0 {
+			zm[mark]--
+		}
+	case ev.Type&conntrack.EventUpdate != 0:
+		// Optional: handle mark change; usually safe to ignore
+	}
+}
+
+// Snapshot returns a safe copy of counts.
+func (a *ZoneMarkAggregator) Snapshot() map[uint16]map[uint32]int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	out := make(map[uint16]map[uint32]int, len(a.counts))
+	for z, marks := range a.counts {
+		cp := make(map[uint32]int, len(marks))
+		for m, c := range marks {
+			if c > 0 {
+				cp[m] = c
 			}
-		case f, ok := <-flowChan:
-			if !ok {
-				return entries, nil
-			}
-			entry, err := s.convertFlow(f)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert flow: %w", err)
-			}
-			entries = append(entries, entry)
+		}
+		out[z] = cp
+	}
+	return out
+}
+
+// PrimeSnapshot: optional one-time seeding with Dump.
+func (a *ZoneMarkAggregator) PrimeSnapshot(ctx context.Context, maxEntries int) error {
+	// Create a fresh connection for dump to avoid multicast interference
+	dumpConn, err := conntrack.Dial(nil)
+	if err != nil {
+		return fmt.Errorf("failed to dial conntrack for prime snapshot: %w", err)
+	}
+	defer dumpConn.Close()
+
+	flows, err := dumpConn.Dump(nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		for i := range flows {
+			flows[i] = conntrack.Flow{}
+		}
+		flows = nil
+		runtime.GC()
+	}()
+
+	processed := 0
+	// zoneCounts := make(map[uint16]int)
+	a.mu.Lock()
+	for _, f := range flows {
+		z := f.Zone
+		m := f.Mark
+
+		// Debug: Track zone distribution
+		// zoneCounts[z]++
+
+		zm, ok := a.counts[z]
+		if !ok {
+			zm = make(map[uint32]int)
+			a.counts[z] = zm
+		}
+		zm[m]++
+		processed++
+		if maxEntries > 0 && processed >= maxEntries {
+			break
 		}
 	}
-}
+	a.mu.Unlock()
 
-// Helper function to map protocol numbers to names
-func getProtocolString(protoNum uint8) string {
-	switch protoNum {
-	case unix.IPPROTO_TCP:
-		return "tcp"
-	case unix.IPPROTO_UDP:
-		return "udp"
-	case unix.IPPROTO_ICMP:
-		return "icmp"
-	case unix.IPPROTO_ICMPV6:
-		return "icmpv6"
-	default:
-		return fmt.Sprintf("proto_%d", protoNum)
-	}
-}
-
-// parseConntrackStateFlags converts kernel conntrack state bitmask to readable string.
-// (Uses ovsh/const.go flags like CsFNew, CsFEstablished etc.)
-func parseConntrackStateFlags(flags uint32) string {
-	states := []string{}
-	// Mapping from ovsh/const.go (CsFNew, CsFEstablished, etc.)
-	// Ensure ovsh is correctly imported and these flags are available.
-	if flags&ovsh.CsFNew != 0 {
-		states = append(states, "NEW")
-	}
-	if flags&ovsh.CsFEstablished != 0 {
-		states = append(states, "ESTABLISHED")
-	}
-	if flags&ovsh.CsFRelated != 0 {
-		states = append(states, "RELATED")
-	}
-	if flags&ovsh.CsFReplyDir != 0 {
-		states = append(states, "REPLY")
-	}
-	if flags&ovsh.CsFInvalid != 0 {
-		states = append(states, "INVALID")
-	}
-	if flags&ovsh.CsFTracked != 0 {
-		states = append(states, "TRACKED")
-	}
-	if flags&ovsh.CsFSrcNat != 0 {
-		states = append(states, "SNAT")
-	}
-	if flags&ovsh.CsFDstNat != 0 {
-		states = append(states, "DNAT")
-	}
-	if len(states) == 0 {
-		return "UNKNOWN"
-	}
-	return strings.Join(states, "|")
-}
-
-func (s *ConntrackService) convertFlow(f conntrack.Flow) (ConntrackEntry, error) {
-	entry := ConntrackEntry{
-		Protocol:   getProtocolString(f.TupleOrig.Proto.Protocol),
-		OrigSrc:    net.IP(f.TupleOrig.IP.SourceAddress.AsSlice()),
-		OrigDst:    net.IP(f.TupleOrig.IP.DestinationAddress.AsSlice()),
-		ReplySrc:   net.IP(f.TupleReply.IP.SourceAddress.AsSlice()),
-		ReplyDst:   net.IP(f.TupleReply.IP.DestinationAddress.AsSlice()),
-		OrigSPort:  f.TupleOrig.Proto.SourcePort,
-		OrigDPort:  f.TupleOrig.Proto.DestinationPort,
-		ReplySPort: f.TupleReply.Proto.SourcePort,
-		ReplyDPort: f.TupleReply.Proto.DestinationPort,
-		Zone:       f.Zone,
-		Mark:       f.Mark,
-	}
-
-	// Handle TCP state specifically
-	if f.TupleOrig.Proto.Protocol == unix.IPPROTO_TCP {
-		entry.State = parseConntrackStateFlags(uint32(f.ProtoInfo.TCP.State))
-	}
-
-	return entry, nil
+	// Debug: Log zone distribution
+	// log.Printf("conntrack prime seeded %d entries", processed)
+	// for zone, count := range zoneCounts {
+	// 	if count > 10 { // Only log zones with significant entries
+	// 		log.Printf("DEBUG: Zone %d has %d entries", zone, count)
+	// 	}
+	// }
+	return nil
 }

@@ -15,6 +15,7 @@
 package ovsnl
 
 import (
+	"context" // Used in commented aggregator code
 	"fmt"
 	"os"
 	"strings"
@@ -23,6 +24,8 @@ import (
 	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/mdlayher/genetlink"
 )
+
+var _ = context.Background // Used in commented aggregator code
 
 // Sizes of various structures, used in unsafe casts.
 const (
@@ -39,6 +42,7 @@ type Client struct {
 
 	c         *genetlink.Conn
 	Conntrack *ConntrackService
+	Agg       *ZoneMarkAggregator
 }
 
 // New creates a new Linux Open vSwitch generic netlink client.
@@ -75,6 +79,30 @@ func New() (*Client, error) {
 	}
 	c.Conntrack = conntrackService
 
+	// Re-enable aggregator now that we've eliminated the stats collection issue
+	agg, err := NewZoneMarkAggregator(conntrackService)
+	if err != nil {
+		// Log the error but continue without aggregator
+		fmt.Printf("Warning: Failed to create conntrack aggregator: %v (continuing without event-driven aggregation)\n", err)
+		c.Agg = nil
+	} else {
+		if err := agg.Start(); err != nil {
+			// Log the error but continue without aggregator
+			fmt.Printf("Warning: Failed to start conntrack aggregator: %v (continuing without event-driven aggregation)\n", err)
+			agg.Stop() // Clean up the failed aggregator
+			c.Agg = nil
+		} else {
+			c.Agg = agg
+		}
+	}
+
+	// Only run prime snapshot if aggregator is available
+	if c.Agg != nil {
+		go func() {
+			_ = c.Agg.PrimeSnapshot(context.Background(), 200000)
+		}()
+	}
+
 	return c, nil
 }
 
@@ -101,6 +129,11 @@ func newClient(c *genetlink.Conn) (*Client, error) {
 // Close closes the Client's generic netlink connection.
 func (c *Client) Close() error {
 	var errs []error
+
+	if c.Agg != nil {
+		c.Agg.Stop()
+	}
+
 	if c.c != nil {
 		if err := c.c.Close(); err != nil {
 			errs = append(errs, err)
