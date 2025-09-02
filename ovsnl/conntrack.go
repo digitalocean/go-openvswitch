@@ -18,11 +18,11 @@
 package ovsnl
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
-	"runtime"
+	"time"
+
 	"sync"
 
 	"github.com/ti-mo/conntrack"
@@ -81,12 +81,15 @@ type ZoneMarkAggregator struct {
 
 // NewZoneMarkAggregator creates a new aggregator with its own listening connection.
 func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
+	log.Printf("Creating new conntrack zone mark aggregator...")
+
 	// Create a separate connection for listening to events
 	listenCli, err := conntrack.Dial(nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listening connection: %w", err)
 	}
 
+	log.Printf("Successfully created conntrack listening connection")
 	return &ZoneMarkAggregator{
 		counts:    make(map[uint16]map[uint32]int),
 		listenCli: listenCli,
@@ -107,53 +110,9 @@ func (s *ConntrackService) Close() error {
 	return nil
 }
 
-// GetStats returns performance counters from the conntrack subsystem.
-// DISABLED: Stats collection is disabled due to multicast connection issues.
-// The exporter now uses nil for getStats to skip this functionality entirely.
-/*
-func (s *ConntrackService) GetStats() (*ConntrackPerformanceStats, error) {
-	// Try the ti-mo/conntrack library first
-	statsConn, err := conntrack.Dial(nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial conntrack for stats: %w", err)
-	}
-	defer statsConn.Close()
-
-	stats, err := statsConn.Stats()
-	if err != nil {
-		// If we get the multicast error, return a minimal stats object
-		// This allows the exporter to continue functioning
-		if strings.Contains(err.Error(), "Conn attached to multicast group") {
-			log.Printf("Warning: Conntrack stats collection failed due to multicast issue, returning minimal stats")
-			return &ConntrackPerformanceStats{
-				CPUs: 1, // Default to 1 CPU
-			}, nil
-		}
-		return nil, fmt.Errorf("failed to get conntrack stats: %w", err)
-	}
-
-	aggStats := &ConntrackPerformanceStats{
-		CPUs: len(stats),
-	}
-
-	for _, stat := range stats {
-		aggStats.TotalFound += stat.Found
-		aggStats.TotalInvalid += stat.Invalid
-		aggStats.TotalIgnore += stat.Ignore
-		aggStats.TotalInsert += stat.Insert
-		aggStats.TotalInsertFailed += stat.InsertFailed
-		aggStats.TotalDrop += stat.Drop
-		aggStats.TotalEarlyDrop += stat.EarlyDrop
-		aggStats.TotalError += stat.Error
-		aggStats.TotalSearchRestart += stat.SearchRestart
-	}
-
-	return aggStats, nil
-}
-*/
-
 // Start subscribes to NEW and DESTROY events and maintains counts.
 func (a *ZoneMarkAggregator) Start() error {
+	log.Printf("Starting conntrack event listener...")
 	events := make(chan conntrack.Event, 8192)
 
 	// Subscribe to ALL groups (NEW, UPDATE, DESTROY).
@@ -163,16 +122,32 @@ func (a *ZoneMarkAggregator) Start() error {
 		netfilter.GroupCTUpdate,
 	}
 
-	errCh, err := a.listenCli.Listen(events, 2, groups) // 2 workers; tune as needed
-	if err != nil {
-		return err
+	log.Printf("Subscribing to conntrack groups: %v", groups)
+
+	// Test if we can at least get stats to verify conntrack is accessible
+	if _, err := a.listenCli.Stats(); err != nil {
+		log.Printf("Warning: Cannot get conntrack stats: %v - this might indicate permission issues", err)
 	}
 
+	errCh, err := a.listenCli.Listen(events, 2, groups) // 2 workers; tune as needed
+	if err != nil {
+		return fmt.Errorf("failed to listen to conntrack events: %w", err)
+	}
+
+	log.Printf("Successfully subscribed to conntrack events, starting event loop...")
 	// Watch for errors from workers
 	go func() {
+		eventCount := 0
+		lastEventTime := time.Now()
+
+		// Start a ticker to check if we're receiving events
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-a.stopCh:
+				log.Printf("Stopping conntrack event listener after %d events", eventCount)
 				close(a.stoppedCh)
 				return
 			case e := <-errCh:
@@ -180,11 +155,28 @@ func (a *ZoneMarkAggregator) Start() error {
 					log.Printf("conntrack listener error: %v", e)
 				}
 			case ev := <-events:
+				eventCount++
+				lastEventTime = time.Now()
+				if eventCount%100 == 0 {
+					log.Printf("Processed %d conntrack events", eventCount)
+				}
 				a.applyEvent(ev)
+			case <-ticker.C:
+				// Check if we've received any events recently
+				if eventCount == 0 && time.Since(lastEventTime) > 30*time.Second {
+					log.Printf("Warning: No conntrack events received in the last 30 seconds")
+					// Try to get stats to see if conntrack is still accessible
+					if stats, err := a.listenCli.Stats(); err != nil {
+						log.Printf("Warning: Cannot get conntrack stats: %v", err)
+					} else {
+						log.Printf("Conntrack stats still accessible: %+v", stats)
+					}
+				}
 			}
 		}
 	}()
 
+	log.Printf("Conntrack event listener started successfully")
 	return nil
 }
 
@@ -201,11 +193,6 @@ func (a *ZoneMarkAggregator) applyEvent(ev conntrack.Event) {
 	f := ev.Flow
 	zone := f.Zone
 	mark := f.Mark
-
-	// Debug: Log zone values to understand what the library is returning
-	if zone != 0 {
-		log.Printf("DEBUG: Event zone=%d, mark=%d, type=%d", zone, mark, ev.Type)
-	}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -246,56 +233,101 @@ func (a *ZoneMarkAggregator) Snapshot() map[uint16]map[uint32]int {
 	return out
 }
 
+//TODO : To confirm if we absolutely need this, can omit if eventual consistency is ok
+
 // PrimeSnapshot: optional one-time seeding with Dump.
-func (a *ZoneMarkAggregator) PrimeSnapshot(ctx context.Context, maxEntries int) error {
-	// Create a fresh connection for dump to avoid multicast interference
-	dumpConn, err := conntrack.Dial(nil)
-	if err != nil {
-		return fmt.Errorf("failed to dial conntrack for prime snapshot: %w", err)
-	}
-	defer dumpConn.Close()
+// func (a *ZoneMarkAggregator) PrimeSnapshot(ctx context.Context, maxEntries int) error {
+// 	log.Printf("Starting conntrack prime snapshot with max entries: %d", maxEntries)
 
-	flows, err := dumpConn.Dump(nil)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		for i := range flows {
-			flows[i] = conntrack.Flow{}
-		}
-		flows = nil
-		runtime.GC()
-	}()
+// 	// Create a fresh connection for dump to avoid multicast interference
+// 	dumpConn, err := conntrack.Dial(nil)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to dial conntrack for prime snapshot: %w", err)
+// 	}
+// 	defer dumpConn.Close()
 
-	processed := 0
-	// zoneCounts := make(map[uint16]int)
-	a.mu.Lock()
-	for _, f := range flows {
-		z := f.Zone
-		m := f.Mark
+// 	log.Printf("Successfully connected to conntrack, starting dump...")
 
-		// Debug: Track zone distribution
-		// zoneCounts[z]++
+// 	// First try to get stats to verify we have access
+// 	if stats, err := dumpConn.Stats(); err != nil {
+// 		log.Printf("Warning: Cannot get conntrack stats: %v - this might indicate permission issues", err)
+// 	} else {
+// 		log.Printf("Conntrack stats accessible: %+v", stats)
+// 	}
 
-		zm, ok := a.counts[z]
-		if !ok {
-			zm = make(map[uint32]int)
-			a.counts[z] = zm
-		}
-		zm[m]++
-		processed++
-		if maxEntries > 0 && processed >= maxEntries {
-			break
-		}
-	}
-	a.mu.Unlock()
+// 	flows, err := dumpConn.Dump(nil)
+// 	if err != nil {
+// 		// Check if it's a permission error
+// 		if err.Error() == "operation not permitted" || err.Error() == "permission denied" {
+// 			log.Printf("Permission denied when trying to dump conntrack - you may need to run with elevated privileges")
+// 			return fmt.Errorf("permission denied when dumping conntrack: %w", err)
+// 		}
+// 		return fmt.Errorf("failed to dump conntrack flows: %w", err)
+// 	}
 
-	// Debug: Log zone distribution
-	// log.Printf("conntrack prime seeded %d entries", processed)
-	// for zone, count := range zoneCounts {
-	// 	if count > 10 { // Only log zones with significant entries
-	// 		log.Printf("DEBUG: Zone %d has %d entries", zone, count)
-	// 	}
-	// }
-	return nil
-}
+// 	if len(flows) == 0 {
+// 		log.Printf("Warning: conntrack dump returned 0 flows - this might indicate a permission issue or empty conntrack table")
+// 		// Check if we can at least get stats
+// 		if stats, err := dumpConn.Stats(); err != nil {
+// 			log.Printf("Failed to get conntrack stats: %v", err)
+// 		} else {
+// 			log.Printf("Conntrack stats: %+v", stats)
+// 		}
+// 		return nil
+// 	}
+
+// 	log.Printf("Dumped %d conntrack flows", len(flows))
+// 	defer func() {
+// 		for i := range flows {
+// 			flows[i] = conntrack.Flow{}
+// 		}
+// 		flows = nil
+// 		runtime.GC()
+// 	}()
+
+// 	processed := 0
+// 	zoneCounts := make(map[uint16]int)
+// 	a.mu.Lock()
+// 	for _, f := range flows {
+// 		z := f.Zone
+// 		m := f.Mark
+
+// 		// Debug: Track zone distribution
+// 		zoneCounts[z]++
+
+// 		zm, ok := a.counts[z]
+// 		if !ok {
+// 			zm = make(map[uint32]int)
+// 			a.counts[z] = zm
+// 		}
+// 		zm[m]++
+// 		processed++
+// 		if maxEntries > 0 && processed >= maxEntries {
+// 			log.Printf("Reached max entries limit (%d), stopping processing", maxEntries)
+// 			break
+// 		}
+// 	}
+// 	a.mu.Unlock()
+
+// 	// Debug: Log zone distribution
+// 	log.Printf("conntrack prime seeded %d entries", processed)
+// 	for zone, count := range zoneCounts {
+// 		if count > 10 { // Only log zones with significant entries
+// 			log.Printf("DEBUG: Zone %d has %d entries", zone, count)
+// 		}
+// 	}
+
+// 	// Log final state
+// 	a.mu.RLock()
+// 	totalZones := len(a.counts)
+// 	totalEntries := 0
+// 	for _, marks := range a.counts {
+// 		for _, cnt := range marks {
+// 			totalEntries += cnt
+// 		}
+// 	}
+// 	a.mu.RUnlock()
+
+// 	log.Printf("Prime snapshot completed: %d zones, %d total entries", totalZones, totalEntries)
+// 	return nil
+// }
