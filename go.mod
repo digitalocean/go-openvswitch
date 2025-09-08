@@ -10,6 +10,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/ti-mo/conntrack v0.5.2
 	github.com/ti-mo/netfilter v0.5.3
+	golang.org/x/sys v0.34.0
 )
 
 require (
@@ -18,5 +19,4 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
 )
