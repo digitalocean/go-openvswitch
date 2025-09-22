@@ -78,23 +78,7 @@ func New() (*Client, error) {
 		return nil, fmt.Errorf("failed to create ConntrackService: %w", err)
 	}
 	c.Conntrack = conntrackService
-
-	// Re-enable aggregator now that we've eliminated the stats collection issue
-	agg, err := NewZoneMarkAggregator(conntrackService)
-	if err != nil {
-		// Log the error but continue without aggregator
-		fmt.Printf("Warning: Failed to create conntrack aggregator: %v (continuing without event-driven aggregation)\n", err)
-		c.Agg = nil
-	} else {
-		if err := agg.Start(); err != nil {
-			// Log the error but continue without aggregator
-			fmt.Printf("Warning: Failed to start conntrack aggregator: %v (continuing without event-driven aggregation)\n", err)
-			agg.Stop() // Clean up the failed aggregator
-			c.Agg = nil
-		} else {
-			c.Agg = agg
-		}
-	}
+	c.Agg = nil
 
 	return c, nil
 }
