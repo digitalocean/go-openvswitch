@@ -37,8 +37,8 @@ import (
 
 // Tunables - adjust for your environment
 const (
-	eventChanSize      = 64 * 1024       // size of the bounded events channel
-	eventWorkerCount   = 4               // number of goroutines consuming events
+	eventChanSize      = 128 * 1024      // size of the bounded events channel (doubled for 2.6M load)
+	eventWorkerCount   = 8               // number of goroutines consuming events
 	destroyFlushIntvl  = 1 * time.Second // flush aggregated DESTROYs every second
 	destroyDeltaCap    = 200000          // maximum distinct (zone,mark) entries in destroyDeltas
 	dropsWarnThreshold = 100             // threshold of missedEvents to log a stronger warning
@@ -134,10 +134,10 @@ func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
 	}
 
 	// Try to increase socket buffers (best-effort)
-	if err := listenCli.SetReadBuffer(8 * 1024 * 1024); err != nil {
+	if err := listenCli.SetReadBuffer(16 * 1024 * 1024); err != nil {
 		log.Printf("Warning: Failed to set read buffer size: %v", err)
 	}
-	if err := listenCli.SetWriteBuffer(8 * 1024 * 1024); err != nil {
+	if err := listenCli.SetWriteBuffer(16 * 1024 * 1024); err != nil {
 		log.Printf("Warning: Failed to set write buffer size: %v", err)
 	}
 
