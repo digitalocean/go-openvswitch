@@ -30,6 +30,20 @@ import (
 	"github.com/ti-mo/netfilter"
 )
 
+//
+// Conntrack aggregator with bounded ingestion + DESTROY aggregation
+// to handle massive bursts of conntrack DESTROY events without OOMing.
+//
+
+// Tunables - adjust for your environment
+const (
+	eventChanSize      = 64 * 1024       // size of the bounded events channel
+	eventWorkerCount   = 4               // number of goroutines consuming events
+	destroyFlushIntvl  = 1 * time.Second // flush aggregated DESTROYs every second
+	destroyDeltaCap    = 200000          // maximum distinct (zone,mark) entries in destroyDeltas
+	dropsWarnThreshold = 100             // threshold of missedEvents to log a stronger warning
+)
+
 // ConntrackEntry represents a single connection tracking entry from the kernel.
 type ConntrackEntry struct {
 	Protocol   string // "tcp", "udp", "icmp" etc.
@@ -71,26 +85,40 @@ type ConntrackService struct {
 	// No persistent client - connections created as needed
 }
 
-// ZoneMarkAggregator keeps live counts (zone -> mark -> count) with adaptive sync.
+// zmKey is a compact key for (zone,mark)
+type zmKey struct {
+	zone uint16
+	mark uint32
+}
+
+// ZoneMarkAggregator keeps live counts (zone -> mark -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
-	mu        sync.RWMutex
-	counts    map[uint16]map[uint32]int
-	listenCli *conntrack.Conn // Separate connection for listening to events
+	// primary counts (zone -> mark -> count)
+	mu     sync.RWMutex
+	counts map[uint16]map[uint32]int
+
+	// conntrack listening connection
+	listenCli *conntrack.Conn
+
+	// lifecycle
 	stopCh    chan struct{}
 	stoppedCh chan struct{}
 
-	// Event tracking for adaptive behavior
-	eventCount    int64
-	lastEventTime time.Time
-	eventRate     float64 // events per second
+	// bounded event ingestion
+	eventsCh chan conntrack.Event
 
-	// Event queue removed - not needed since NEW events don't cause buffer overflow
+	// aggregated DESTROY deltas (bounded by destroyDeltaCap)
+	deltaMu       sync.Mutex
+	destroyDeltas map[zmKey]int
 
-	// Health monitoring
+	// metrics / health
+	eventCount      int64
+	lastEventTime   time.Time
+	eventRate       float64
 	missedEvents    int64
 	lastHealthCheck time.Time
 
-	// Initial snapshot state
+	// initial snapshot state (we keep disabled for huge tables)
 	initialSnapshotComplete bool
 	initialSnapshotError    error
 }
@@ -105,68 +133,67 @@ func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
 		return nil, fmt.Errorf("failed to create listening connection: %w", err)
 	}
 
-	// Increase netlink socket buffer size to handle 2.6M conntrack event rates
-	if err := listenCli.SetReadBuffer(8 * 1024 * 1024); err != nil { // 8MB buffer
+	// Try to increase socket buffers (best-effort)
+	if err := listenCli.SetReadBuffer(8 * 1024 * 1024); err != nil {
 		log.Printf("Warning: Failed to set read buffer size: %v", err)
 	}
-	if err := listenCli.SetWriteBuffer(8 * 1024 * 1024); err != nil { // 8MB buffer
+	if err := listenCli.SetWriteBuffer(8 * 1024 * 1024); err != nil {
 		log.Printf("Warning: Failed to set write buffer size: %v", err)
 	}
 
-	log.Printf("Successfully created conntrack listening connection with increased buffer size")
+	a := &ZoneMarkAggregator{
+		counts:                  make(map[uint16]map[uint32]int),
+		listenCli:               listenCli,
+		stopCh:                  make(chan struct{}),
+		stoppedCh:               make(chan struct{}),
+		eventsCh:                make(chan conntrack.Event, eventChanSize),
+		destroyDeltas:           make(map[zmKey]int),
+		lastEventTime:           time.Now(),
+		lastHealthCheck:         time.Now(),
+		initialSnapshotComplete: false,
+		initialSnapshotError:    nil,
+	}
 
-	return &ZoneMarkAggregator{
-		counts:          make(map[uint16]map[uint32]int),
-		listenCli:       listenCli,
-		stopCh:          make(chan struct{}),
-		stoppedCh:       make(chan struct{}),
-		lastEventTime:   time.Now(),
-		lastHealthCheck: time.Now(),
-	}, nil
+	log.Printf("Successfully created conntrack listening connection with event channel size %d", eventChanSize)
+	return a, nil
 }
 
 func NewConntrackService() (*ConntrackService, error) {
-	// Don't create a persistent connection - we'll create fresh connections as needed
-	// This avoids any interference with the aggregator's multicast connection
 	return &ConntrackService{}, nil
 }
 
-// Close closes the underlying Netlink connection for conntrack.
 func (s *ConntrackService) Close() error {
-	// No persistent connection to close
 	return nil
 }
 
-// Start subscribes to NEW and DESTROY events and maintains counts with adaptive sync.
+// Start subscribes to NEW/DESTROY/UPDATE events and maintains counts with bounded ingestion.
 func (a *ZoneMarkAggregator) Start() error {
-	log.Printf("Starting conntrack event listener with adaptive sync...")
+	log.Printf("Starting conntrack event listener with bounded ingestion + DESTROY aggregation...")
 
-	// Start event listener first (non-blocking)
 	if err := a.startEventListener(); err != nil {
 		return err
 	}
 
-	// Start health monitoring
+	for i := 0; i < eventWorkerCount; i++ {
+		go a.eventWorker(i)
+	}
+
+	go a.destroyFlusher()
 	go a.startHealthMonitoring()
 
-	// CRITICAL: Initial snapshot DISABLED - even parallel processing causes OOM with 2M+ conntracks
 	go func() {
-		log.Printf("CRITICAL: Initial snapshot DISABLED to prevent OOM")
-		log.Printf("Even parallel processing cannot handle 2M+ conntracks in memory")
-		log.Printf("Starting with empty baseline - will rely on real-time events")
+		log.Printf("Initial snapshot DISABLED (to avoid OOM on large tables). Starting from empty baseline and relying on events.")
 		a.initialSnapshotComplete = true
 		a.initialSnapshotError = nil
 	}()
 
-	log.Printf("Conntrack event listener started successfully (initial snapshot in progress)")
+	log.Printf("Conntrack aggregator started (workers=%d, eventChan=%d)", eventWorkerCount, eventChanSize)
 	return nil
 }
 
-// startEventListener handles real-time conntrack events
+// startEventListener handles real-time conntrack events, pushing into bounded eventsCh.
 func (a *ZoneMarkAggregator) startEventListener() error {
-	events := make(chan conntrack.Event, 262144) // 256K events for 2.6M conntrack capacity
-
-	// Subscribe to ALL groups (NEW, UPDATE, DESTROY).
+	libEvents := make(chan conntrack.Event, 8192)
 	groups := []netfilter.NetlinkGroup{
 		netfilter.GroupCTNew,
 		netfilter.GroupCTDestroy,
@@ -175,109 +202,52 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 
 	log.Printf("Subscribing to conntrack groups: %v", groups)
 
-	// Test if we can at least get stats to verify conntrack is accessible
-	// Note: We can't call Stats() on a multicast connection, so we'll skip this check
-	// and rely on the event loop to detect issues
-
-	errCh, err := a.listenCli.Listen(events, 8, groups) // 8 workers for 2.6M conntrack capacity
+	errCh, err := a.listenCli.Listen(libEvents, 10, groups)
 	if err != nil {
 		return fmt.Errorf("failed to listen to conntrack events: %w", err)
 	}
 
-	log.Printf("Successfully subscribed to conntrack events, starting event loop...")
-
-	// Watch for errors from workers
 	go func() {
 		eventCount := int64(0)
-		lastEventTime := time.Now()
-		rateWindow := make([]time.Time, 0, 100) // Track last 100 events for rate calculation
-
-		// Start a ticker to check if we're receiving events
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
+		rateWindow := make([]time.Time, 0, 100)
 
 		for {
 			select {
 			case <-a.stopCh:
-				log.Printf("Stopping conntrack event listener after %d events", atomic.LoadInt64(&eventCount))
-				close(a.stoppedCh)
+				log.Printf("Stopping lib->bounded relay after %d lib events", atomic.LoadInt64(&eventCount))
 				return
 			case e := <-errCh:
 				if e != nil {
 					log.Printf("conntrack listener error: %v", e)
 					atomic.AddInt64(&a.missedEvents, 1)
-
-					// If we get too many errors, try to recover
-					if atomic.LoadInt64(&a.missedEvents) > 10 {
-						log.Printf("Too many conntrack errors (%d), attempting recovery...", atomic.LoadInt64(&a.missedEvents))
-						// Reset error counter and try to reinitialize
-						atomic.StoreInt64(&a.missedEvents, 0)
-						// Note: Full recovery would require restarting the listener, which is complex
-						// For now, we'll just reset the counter and continue
-					}
 				}
-			case ev := <-events:
-				now := time.Now()
-				atomic.AddInt64(&eventCount, 1)
-				atomic.StoreInt64(&a.eventCount, eventCount)
-				a.lastEventTime = now
-
-				// Update rate calculation
-				rateWindow = append(rateWindow, now)
-				if len(rateWindow) > 100 {
-					rateWindow = rateWindow[1:]
-				}
-				if len(rateWindow) > 1 {
-					duration := rateWindow[len(rateWindow)-1].Sub(rateWindow[0])
-					if duration > 0 {
-						a.eventRate = float64(len(rateWindow)-1) / duration.Seconds()
-					}
-				}
-
+			case ev := <-libEvents:
+				// Log every 1000 events to verify events are being received from netlink
 				if eventCount%1000 == 0 {
-					log.Printf("Processed %d conntrack events (rate: %.2f events/sec)", eventCount, a.eventRate)
+					log.Printf("Received event from netlink: type=%d, zone=%d, mark=%d", ev.Type, ev.Flow.Zone, ev.Flow.Mark)
 				}
 
-				// Smart DESTROY event handling - balance accuracy vs OOM risk
-				if ev.Type == conntrack.EventDestroy {
-					if a.eventRate > 75000 { // 75K events/sec threshold
-						// During extreme bursts, process every other DESTROY event to prevent OOM
-						if eventCount%3 != 0 {
-							a.applyEvent(ev)
-						} else {
-							log.Printf("Rate limiting: Dropping DESTROY event during extreme burst (rate: %.2f events/sec)", a.eventRate)
+				select {
+				case a.eventsCh <- ev:
+					atomic.AddInt64(&eventCount, 1)
+					atomic.StoreInt64(&a.eventCount, eventCount)
+					a.lastEventTime = time.Now()
+
+					rateWindow = append(rateWindow, a.lastEventTime)
+					if len(rateWindow) > 100 {
+						rateWindow = rateWindow[1:]
+					}
+					if len(rateWindow) > 1 {
+						duration := rateWindow[len(rateWindow)-1].Sub(rateWindow[0])
+						if duration > 0 {
+							a.eventRate = float64(len(rateWindow)-1) / duration.Seconds()
 						}
-					} else {
-						// Normal rate, process all DESTROY events for accuracy
-						a.applyEvent(ev)
 					}
-					continue
-				}
-
-				// Only apply rate limiting to NEW events during high load
-				if a.eventRate > 150000 {
-					// Process every other NEW event during high load
-					if eventCount%2 == 0 {
-						a.applyEvent(ev)
-					} else {
-						log.Printf("Rate limiting: Dropping NEW event during high load (rate: %.2f events/sec)", a.eventRate)
-					}
-					continue
-				}
-
-				a.applyEvent(ev)
-
-				// Rate limiting: yield every 100 events to prevent overwhelming the system
-				if eventCount%100 == 0 {
-					runtime.Gosched()
-				}
-			case <-ticker.C:
-				// Check if we've received any events recently
-				if eventCount == 0 && time.Since(lastEventTime) > 30*time.Second {
-					log.Printf("Warning: No conntrack events received in the last 30 seconds")
+				default:
 					atomic.AddInt64(&a.missedEvents, 1)
-					// Note: We can't call Stats() on a multicast connection
-					// The lack of events might indicate a real issue or just low activity
+					if atomic.LoadInt64(&a.missedEvents)%100 == 0 {
+						log.Printf("Warning: eventsCh full, missedEvents=%d", atomic.LoadInt64(&a.missedEvents))
+					}
 				}
 			}
 		}
@@ -286,98 +256,135 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 	return nil
 }
 
-// startHealthMonitoring monitors the health of the aggregator
-func (a *ZoneMarkAggregator) startHealthMonitoring() {
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
+// eventWorker consumes events from eventsCh and handles them
+func (a *ZoneMarkAggregator) eventWorker(id int) {
+	log.Printf("Event worker %d started", id)
+	processedCount := 0
 
 	for {
 		select {
 		case <-a.stopCh:
+			log.Printf("Event worker %d stopping (processed %d events)", id, processedCount)
+			return
+		case ev := <-a.eventsCh:
+			a.handleEvent(ev)
+			processedCount++
+			if processedCount%1000 == 0 {
+				log.Printf("Event worker %d: processed %d events", id, processedCount)
+			}
+			if atomic.LoadInt64(&a.eventCount)%100 == 0 {
+				runtime.Gosched()
+			}
+		}
+	}
+}
+
+// handleEvent processes a single event.
+func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
+	f := ev.Flow
+	key := zmKey{zone: f.Zone, mark: f.Mark}
+
+	// Log every 1000 events to verify events are being processed
+	eventCount := atomic.LoadInt64(&a.eventCount)
+	if eventCount%1000 == 0 {
+		log.Printf("handleEvent: processed %d events, current event type=%d", eventCount, ev.Type)
+	}
+
+	if ev.Type == conntrack.EventNew {
+		a.mu.Lock()
+		zm, ok := a.counts[f.Zone]
+		if !ok {
+			zm = make(map[uint32]int)
+			a.counts[f.Zone] = zm
+		}
+		zm[f.Mark]++
+		a.mu.Unlock()
+		return
+	}
+
+	if ev.Type == conntrack.EventDestroy {
+		a.deltaMu.Lock()
+		if len(a.destroyDeltas) < destroyDeltaCap {
+			a.destroyDeltas[key]++
+			// Log every 1000 DESTROY events to verify they're being received
+			if len(a.destroyDeltas)%1000 == 0 {
+				log.Printf("DESTROY events: %d entries in destroyDeltas (zone=%d, mark=%d)", len(a.destroyDeltas), key.zone, key.mark)
+			}
+		} else {
+			atomic.AddInt64(&a.missedEvents, 1)
+			if atomic.LoadInt64(&a.missedEvents)%dropsWarnThreshold == 0 {
+				log.Printf("Warning: destroyDeltas saturated (size=%d). missedEvents=%d", len(a.destroyDeltas), atomic.LoadInt64(&a.missedEvents))
+			}
+		}
+		a.deltaMu.Unlock()
+		return
+	}
+}
+
+// destroyFlusher periodically applies the aggregated DESTROY deltas into counts
+func (a *ZoneMarkAggregator) destroyFlusher() {
+	ticker := time.NewTicker(destroyFlushIntvl)
+	defer ticker.Stop()
+
+	log.Printf("Destroy flusher started (interval: %v)", destroyFlushIntvl)
+
+	for {
+		select {
+		case <-a.stopCh:
+			log.Printf("Destroy flusher stopping, final flush...")
+			a.flushDestroyDeltas()
 			return
 		case <-ticker.C:
-			a.performHealthCheck()
+			a.flushDestroyDeltas()
 		}
 	}
 }
 
-// performHealthCheck performs health monitoring
-func (a *ZoneMarkAggregator) performHealthCheck() {
-	missed := atomic.LoadInt64(&a.missedEvents)
-	eventCount := atomic.LoadInt64(&a.eventCount)
-
-	if missed > 0 {
-		log.Printf("Health check: %d missed events detected", missed)
+// flushDestroyDeltas atomically swaps the delta map and applies decrements
+func (a *ZoneMarkAggregator) flushDestroyDeltas() {
+	a.deltaMu.Lock()
+	if len(a.destroyDeltas) == 0 {
+		a.deltaMu.Unlock()
+		return
 	}
+	deltas := a.destroyDeltas
+	a.destroyDeltas = make(map[zmKey]int)
+	a.deltaMu.Unlock()
 
-	if eventCount == 0 && time.Since(a.lastEventTime) > 5*time.Minute {
-		log.Printf("Health check: No events received in %v", time.Since(a.lastEventTime))
-	}
-
-	// If we have too many missed events, try to restart the listener
-	if missed > 50 {
-		log.Printf("Health check: Too many missed events (%d), attempting listener restart", missed)
-		if err := a.RestartListener(); err != nil {
-			log.Printf("Health check: Failed to restart listener: %v", err)
-		} else {
-			// Reset the missed events counter after successful restart
-			atomic.StoreInt64(&a.missedEvents, 0)
-			log.Printf("Health check: Listener restarted successfully")
-		}
-	} else if missed > 5 {
-		// For moderate missed events, just reset the counter to prevent repeated attempts
-		log.Printf("Health check: Moderate missed events (%d), resetting counter (sync disabled)", missed)
-		atomic.StoreInt64(&a.missedEvents, 0)
-		log.Printf("Health check: All sync operations disabled to prevent OOM")
-	}
-
-	a.lastHealthCheck = time.Now()
-}
-
-// Stop cancels listening and closes the connection.
-func (a *ZoneMarkAggregator) Stop() {
-	close(a.stopCh)
-	<-a.stoppedCh
-	if a.listenCli != nil {
-		a.listenCli.Close()
-	}
-}
-
-func (a *ZoneMarkAggregator) applyEvent(ev conntrack.Event) {
-	f := ev.Flow
-	zone := f.Zone
-	mark := f.Mark
+	log.Printf("flushDestroyDeltas: processing %d delta entries", len(deltas))
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	zm, ok := a.counts[zone]
-	if !ok {
-		zm = make(map[uint32]int)
-		a.counts[zone] = zm
-	}
-
-	if ev.Type == conntrack.EventNew {
-		zm[mark]++
-		if zm[mark]%1000 == 0 {
-			log.Printf("Zone %d, Mark %d: %d entries", zone, mark, zm[mark])
+	totalDecrements := 0
+	for k, cnt := range deltas {
+		zm, ok := a.counts[k.zone]
+		if !ok {
+			atomic.AddInt64(&a.missedEvents, int64(cnt))
+			continue
 		}
-	}
-
-	if ev.Type == conntrack.EventDestroy {
-		if zm[mark] > 0 {
-			zm[mark]--
-			if zm[mark]%1000 == 0 {
-				log.Printf("Zone %d, Mark %d: %d entries (after DESTROY)", zone, mark, zm[mark])
+		existing := zm[k.mark]
+		if existing <= cnt {
+			delete(zm, k.mark)
+			if len(zm) == 0 {
+				delete(a.counts, k.zone)
 			}
+			totalDecrements += existing
 		} else {
-			log.Printf("Warning: DESTROY event for non-existent entry (zone=%d, mark=%d) - current count: %d", zone, mark, zm[mark])
+			zm[k.mark] = existing - cnt
+			totalDecrements += cnt
 		}
+	}
+
+	if len(deltas) > 0 {
+		log.Printf("flushDestroyDeltas: applied %d deltas, decremented %d total entries, missedEvents=%d",
+			len(deltas), totalDecrements, atomic.LoadInt64(&a.missedEvents))
 	}
 }
 
 // Snapshot returns a safe copy of counts.
 func (a *ZoneMarkAggregator) Snapshot() map[uint16]map[uint32]int {
+	a.flushDestroyDeltas()
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -394,73 +401,94 @@ func (a *ZoneMarkAggregator) Snapshot() map[uint16]map[uint32]int {
 	return out
 }
 
+// GetTotalCount returns the total counted entries (best-effort)
+func (a *ZoneMarkAggregator) GetTotalCount() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	total := 0
+	for _, marks := range a.counts {
+		for _, c := range marks {
+			total += c
+		}
+	}
+	return total
+}
+
+// startHealthMonitoring periodically logs aggregator health
+func (a *ZoneMarkAggregator) startHealthMonitoring() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-a.stopCh:
+			return
+		case <-ticker.C:
+			a.performHealthCheck()
+		}
+	}
+}
+
+func (a *ZoneMarkAggregator) performHealthCheck() {
+	missed := atomic.LoadInt64(&a.missedEvents)
+	eventCount := atomic.LoadInt64(&a.eventCount)
+
+	if missed > 0 {
+		log.Printf("Health check: missed_events=%d, event_count=%d, event_rate=%.2f, total_count=%d",
+			missed, eventCount, a.eventRate, a.GetTotalCount())
+	}
+	if missed > dropsWarnThreshold {
+		log.Printf("Health check: missed events exceeded threshold (%d); attempting listener restart", missed)
+		if err := a.RestartListener(); err != nil {
+			log.Printf("Health check: RestartListener failed: %v", err)
+		} else {
+			atomic.StoreInt64(&a.missedEvents, 0)
+			log.Printf("Health check: Listener restarted successfully")
+		}
+	}
+	a.lastHealthCheck = time.Now()
+}
+
+// Stop cancels listening and closes the connection.
+func (a *ZoneMarkAggregator) Stop() {
+	close(a.stopCh)
+	time.Sleep(20 * time.Millisecond)
+	if a.listenCli != nil {
+		a.listenCli.Close()
+	}
+	a.flushDestroyDeltas()
+}
+
 // IsHealthy checks if the aggregator is in a healthy state
 func (a *ZoneMarkAggregator) IsHealthy() bool {
-	// Check if initial snapshot failed
 	if a.initialSnapshotComplete && a.initialSnapshotError != nil {
 		return false
 	}
-
-	// Check if we've received events recently
 	if time.Since(a.lastEventTime) > 10*time.Minute {
 		return false
 	}
-
-	// Check for too many missed events
-	if atomic.LoadInt64(&a.missedEvents) > 1000 {
+	if atomic.LoadInt64(&a.missedEvents) > 100000 {
 		return false
 	}
-
 	return true
 }
 
 // RestartListener attempts to restart the conntrack event listener
-// This should be called when the listener is completely dead
 func (a *ZoneMarkAggregator) RestartListener() error {
 	log.Printf("Attempting to restart conntrack event listener...")
-
-	// Stop the current listener
 	if a.listenCli != nil {
-		a.listenCli.Close()
+		_ = a.listenCli.Close()
 	}
-
-	// Create a new connection
 	listenCli, err := conntrack.Dial(nil)
 	if err != nil {
 		return fmt.Errorf("failed to create new listening connection: %w", err)
 	}
 	a.listenCli = listenCli
-
-	// Restart the event listener
-	if err := a.startEventListener(); err != nil {
-		return fmt.Errorf("failed to restart event listener: %w", err)
-	}
-
-	log.Printf("Conntrack event listener restarted successfully")
-	return nil
+	return a.startEventListener()
 }
 
-// ForceSync performs a manual sync to get the current kernel state
-// This should only be called when we know the event-based counts are wrong
+// ForceSync performs a manual sync (disabled for large tables)
 func (a *ZoneMarkAggregator) ForceSync() error {
-	log.Printf("Performing manual force sync...")
-
-	// WARNING: ForceSync can cause OOM with large conntrack tables
-	// For now, we'll disable it to prevent crashes
-	log.Printf("ForceSync DISABLED to prevent OOM with large conntrack tables")
-	log.Printf("Use real-time events for accuracy instead")
-	return nil
+	log.Printf("ForceSync: disabled to avoid OOM with large conntrack tables")
+	return fmt.Errorf("ForceSync disabled")
 }
-
-// processQueuedEvents removed - not needed since NEW events don't cause buffer overflow
-
-// getTotalEntries returns the total number of entries across all zones and marks
-// func (a *ZoneMarkAggregator) getTotalEntries() int {
-// 	total := 0
-// 	for _, marks := range a.counts {
-// 		for _, count := range marks {
-// 			total += count
-// 		}
-// 	}
-// 	return total
-// }
