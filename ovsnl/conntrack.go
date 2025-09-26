@@ -37,11 +37,11 @@ import (
 
 // Tunables - adjust for your environment
 const (
-	eventChanSize      = 128 * 1024      // size of the bounded events channel (doubled for 2.6M load)
-	eventWorkerCount   = 8               // number of goroutines consuming events
-	destroyFlushIntvl  = 1 * time.Second // flush aggregated DESTROYs every second
-	destroyDeltaCap    = 200000          // maximum distinct (zone,mark) entries in destroyDeltas
-	dropsWarnThreshold = 100             // threshold of missedEvents to log a stronger warning
+	eventChanSize      = 512 * 1024
+	eventWorkerCount   = 100
+	destroyFlushIntvl  = 100 * time.Millisecond // flush aggregated DESTROYs every 100ms for minimal lag
+	destroyDeltaCap    = 200000                 // maximum distinct (zone,mark) entries in destroyDeltas
+	dropsWarnThreshold = 100                    // threshold of missedEvents to log a stronger warning
 )
 
 // ConntrackEntry represents a single connection tracking entry from the kernel.
@@ -133,11 +133,11 @@ func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
 		return nil, fmt.Errorf("failed to create listening connection: %w", err)
 	}
 
-	// Try to increase socket buffers (best-effort)
-	if err := listenCli.SetReadBuffer(16 * 1024 * 1024); err != nil {
+	// Try to increase socket buffers (best-effort) - scaled for 20-droplet DDoS
+	if err := listenCli.SetReadBuffer(64 * 1024 * 1024); err != nil { // 64MB buffer for 1.4M events/sec
 		log.Printf("Warning: Failed to set read buffer size: %v", err)
 	}
-	if err := listenCli.SetWriteBuffer(16 * 1024 * 1024); err != nil {
+	if err := listenCli.SetWriteBuffer(64 * 1024 * 1024); err != nil { // 64MB buffer for 1.4M events/sec
 		log.Printf("Warning: Failed to set write buffer size: %v", err)
 	}
 
@@ -306,6 +306,15 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 		a.deltaMu.Lock()
 		if len(a.destroyDeltas) < destroyDeltaCap {
 			a.destroyDeltas[key]++
+			// Immediate flush for large delta batches during 20-droplet DDoS to minimize lag
+			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
+				deltas := a.destroyDeltas
+				a.destroyDeltas = make(map[zmKey]int)
+				a.deltaMu.Unlock()
+				// Apply deltas immediately to minimize lag during extreme load
+				a.applyDeltasImmediately(deltas)
+				return
+			}
 			// Log every 1000 DESTROY events to verify they're being received
 			if len(a.destroyDeltas)%1000 == 0 {
 				log.Printf("DESTROY events: %d entries in destroyDeltas (zone=%d, mark=%d)", len(a.destroyDeltas), key.zone, key.mark)
@@ -321,7 +330,41 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 	}
 }
 
+// applyDeltasImmediately applies deltas immediately to minimize lag during extreme load
+func (a *ZoneMarkAggregator) applyDeltasImmediately(deltas map[zmKey]int) {
+	log.Printf("applyDeltasImmediately: processing %d delta entries (immediate flush for 20-droplet DDoS)", len(deltas))
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	totalDecrements := 0
+	for k, cnt := range deltas {
+		zm, ok := a.counts[k.zone]
+		if !ok {
+			atomic.AddInt64(&a.missedEvents, int64(cnt))
+			continue
+		}
+		existing := zm[k.mark]
+		if existing <= cnt {
+			delete(zm, k.mark)
+			if len(zm) == 0 {
+				delete(a.counts, k.zone)
+			}
+			totalDecrements += existing
+		} else {
+			zm[k.mark] = existing - cnt
+			totalDecrements += cnt
+		}
+	}
+
+	if len(deltas) > 0 {
+		log.Printf("applyDeltasImmediately: applied %d deltas, decremented %d total entries, missedEvents=%d",
+			len(deltas), totalDecrements, atomic.LoadInt64(&a.missedEvents))
+	}
+}
+
 // destroyFlusher periodically applies the aggregated DESTROY deltas into counts
+// Uses adaptive flushing: more frequent during high event rates for minimal lag
 func (a *ZoneMarkAggregator) destroyFlusher() {
 	ticker := time.NewTicker(destroyFlushIntvl)
 	defer ticker.Stop()
@@ -335,7 +378,26 @@ func (a *ZoneMarkAggregator) destroyFlusher() {
 			a.flushDestroyDeltas()
 			return
 		case <-ticker.C:
-			a.flushDestroyDeltas()
+			// Adaptive flushing: flush more frequently during high event rates
+			a.mu.RLock()
+			eventRate := a.eventRate
+			a.mu.RUnlock()
+
+			if eventRate > 500000 { // Very high event rate (>500K/sec) - 20-droplet DDoS
+				// Flush immediately and reset ticker for faster interval
+				a.flushDestroyDeltas()
+				ticker.Reset(50 * time.Millisecond) // 50ms during extreme load
+			} else if eventRate > 100000 { // High event rate (>100K/sec) - 10-droplet DDoS
+				a.flushDestroyDeltas()
+				ticker.Reset(100 * time.Millisecond) // 100ms during high load
+			} else if eventRate > 10000 { // Medium event rate (>10K/sec) - 2-3 droplets
+				a.flushDestroyDeltas()
+				ticker.Reset(200 * time.Millisecond) // 200ms during medium load
+			} else {
+				// Normal flush
+				a.flushDestroyDeltas()
+				ticker.Reset(destroyFlushIntvl) // Back to normal interval
+			}
 		}
 	}
 }
