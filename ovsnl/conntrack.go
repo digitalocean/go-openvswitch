@@ -94,8 +94,8 @@ type zmKey struct {
 // ZoneMarkAggregator keeps live counts (zone -> mark -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
 	// primary counts (zone -> mark -> count)
-	mu     sync.RWMutex
 	counts map[uint16]map[uint32]int
+	mu     sync.RWMutex
 
 	// conntrack listening connection
 	listenCli *conntrack.Conn
