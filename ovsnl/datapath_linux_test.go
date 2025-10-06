@@ -34,12 +34,9 @@ import (
 func TestClientDatapathListShortHeader(t *testing.T) {
 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Not enough data for ovsh.Header.
-		fmt.Printf("🔍 Mock called with command: %d, data length: %d", greq.Header.Command, len(greq.Data))
-		fmt.Printf("🔍 Mock returning short data: %v", []byte{0xff, 0xff})
-		fmt.Printf("🔍 Mock called with command: %d, data length: %d\n", greq.Header.Command, len(greq.Data))
 		return []genetlink.Message{
 			{
-				Data: []byte{0xff, 0xff},
+				Data: []byte{0xff, 0xff}, // Only 2 bytes, but sizeofHeader is 4
 			},
 		}, nil
 	}))
@@ -49,6 +46,13 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 	defer c.Close()
+
+	if c.Datapath == nil {
+		t.Fatalf("Datapath service is nil - mock not properly initialized")
+	}
+
+	t.Logf("🔍 About to call c.Datapath.List()")
+	fmt.Printf("🔍 About to call c.Datapath.List()\n")
 
 	_, err = c.Datapath.List()
 	if err == nil {
@@ -63,12 +67,12 @@ func TestClientDatapathListBadStats(t *testing.T) {
 		// Valid header; not enough data for ovsh.DPStats.
 		return []genetlink.Message{{
 			Data: append(
-				// ovsh.Header.
+				// ovsh.Header (4 bytes).
 				[]byte{0xff, 0xff, 0xff, 0xff},
 				// netlink attributes.
 				mustMarshalAttributes([]netlink.Attribute{{
 					Type: ovsh.DpAttrStats,
-					Data: []byte{0xff},
+					Data: []byte{0xff}, // Only 1 byte, but sizeofDPStats is 32 bytes
 				}})...,
 			),
 		}}, nil
@@ -93,12 +97,12 @@ func TestClientDatapathListBadMegaflowStats(t *testing.T) {
 		// Valid header; not enough data for ovsh.DPMegaflowStats.
 		return []genetlink.Message{{
 			Data: append(
-				// ovsh.Header.
+				// ovsh.Header (4 bytes).
 				[]byte{0xff, 0xff, 0xff, 0xff},
 				// netlink attributes.
 				mustMarshalAttributes([]netlink.Attribute{{
 					Type: ovsh.DpAttrMegaflowStats,
-					Data: []byte{0xff},
+					Data: []byte{0xff}, // Only 1 byte, but sizeofDPMegaflowStats is 32 bytes
 				}})...,
 			),
 		}}, nil
