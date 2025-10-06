@@ -39,8 +39,9 @@ type Table struct {
 
 // UnmarshalText unmarshals a Table from textual form as output by
 // 'ovs-ofctl dump-tables':
-//  0: classifier: wild=0x3fffff, max=1000000, active=0
-//                 lookup=0, matched=0
+//
+//	0: classifier: wild=0x3fffff, max=1000000, active=0
+//	               lookup=0, matched=0
 func (t *Table) UnmarshalText(b []byte) error {
 	// Make a copy per documentation for encoding.TextUnmarshaler.
 	s := string(b)

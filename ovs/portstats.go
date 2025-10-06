@@ -64,8 +64,9 @@ type PortStatsTransmit struct {
 
 // UnmarshalText unmarshals a PortStats from textual form as output by
 // 'ovs-ofctl dump-ports':
-//    port  1: rx pkts=0, bytes=0, drop=0, errs=0, frame=0, over=0, crc=0
-//             tx pkts=0, bytes=0, drop=0, errs=0, coll=0
+//
+//	port  1: rx pkts=0, bytes=0, drop=0, errs=0, frame=0, over=0, crc=0
+//	         tx pkts=0, bytes=0, drop=0, errs=0, coll=0
 func (p *PortStats) UnmarshalText(b []byte) error {
 	// Make a copy per documentation for encoding.TextUnmarshaler.
 	s := string(b)
