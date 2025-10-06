@@ -18,6 +18,7 @@
 package ovsnl
 
 import (
+	"fmt"
 	"testing"
 	"unsafe"
 
@@ -35,6 +36,7 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 		// Not enough data for ovsh.Header.
 		t.Logf("🔍 Mock called with command: %d, data length: %d", greq.Header.Command, len(greq.Data))
 		t.Logf("🔍 Mock returning short data: %v", []byte{0xff, 0xff})
+		fmt.Printf("🔍 Mock called with command: %d, data length: %d\n", greq.Header.Command, len(greq.Data))
 		return []genetlink.Message{
 			{
 				Data: []byte{0xff, 0xff},
@@ -233,6 +235,7 @@ func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.M
 		}
 
 		// Handle actual datapath requests
+		fmt.Printf("🔍 ovsFamilies: calling handler for command %d\n", greq.Header.Command)
 		return handler(greq, nreq)
 	}
 }
