@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os/exec"
 	"strings"
@@ -145,7 +144,7 @@ func shellPipe(stdin io.Reader, cmd string, args ...string) ([]byte, error) {
 	}
 
 	mr := io.MultiReader(stdout, stderr)
-	b, err := ioutil.ReadAll(mr)
+	b, err := io.ReadAll(mr)
 	if err != nil {
 		return nil, err
 	}
