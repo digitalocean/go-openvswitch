@@ -1,8 +1,8 @@
 module github.com/digitalocean/go-openvswitch
 
-go 1.23.0
+go 1.24.0
 
-toolchain go1.24.2
+toolchain go1.24.0
 
 require (
 	github.com/google/go-cmp v0.7.0
@@ -10,7 +10,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/ti-mo/conntrack v0.5.2
 	github.com/ti-mo/netfilter v0.5.3
-	golang.org/x/sys v0.34.0
+	golang.org/x/sys v0.36.0
 )
 
 require (

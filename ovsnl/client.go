@@ -15,7 +15,6 @@
 package ovsnl
 
 import (
-	"context" // Used in commented aggregator code
 	"fmt"
 	"os"
 	"strings"
@@ -24,8 +23,6 @@ import (
 	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/mdlayher/genetlink"
 )
-
-var _ = context.Background // Used in commented aggregator code
 
 // Sizes of various structures, used in unsafe casts.
 const (
@@ -40,9 +37,8 @@ type Client struct {
 	// Datapath provides access to DatapathService methods.
 	Datapath *DatapathService
 
-	c         *genetlink.Conn
-	Conntrack *ConntrackService
-	Agg       *ZoneMarkAggregator
+	c   *genetlink.Conn
+	Agg *ZoneMarkAggregator
 }
 
 // New creates a new Linux Open vSwitch generic netlink client.
@@ -71,13 +67,7 @@ func New() (*Client, error) {
 		return nil, err
 	}
 
-	// Initialize ConntrackService directly, as it manages its own internal conntrack.Conn
-	conntrackService, err := NewConntrackService() // This will establish ti-mo/conntrack's connection
-	if err != nil {
-		_ = c.c.Close() // Ensure main client connection is closed
-		return nil, fmt.Errorf("failed to create ConntrackService: %w", err)
-	}
-	c.Conntrack = conntrackService
+	// Initialize aggregator as nil - will be created when needed
 	c.Agg = nil
 
 	return c, nil
@@ -93,11 +83,6 @@ func (c *Client) Close() error {
 
 	if c.c != nil {
 		if err := c.c.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if c.Conntrack != nil {
-		if err := c.Conntrack.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -120,9 +105,7 @@ func (c *Client) init(families []genetlink.Family) error {
 				continue
 			}
 		} else if f.Name == "nf_conntrack" { // Explicitly initialize for Netfilter conntrack family
-			// The ConntrackService is initialized separately by NewConntrackService(),
-			// so we just acknowledge this family exists.
-			// No direct assignment to c.Conntrack here because it manages its own connection.
+			// Acknowledge that conntrack family exists - aggregator will handle conntrack operations
 		} else {
 			// Skip other non-OVS/non-conntrack families
 			continue

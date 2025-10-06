@@ -59,37 +59,15 @@ type ConntrackPerformanceStats struct {
 	CPUs               int
 }
 
-// ConntrackService manages the connection to the kernel's conntrack via Netlink.
-type ConntrackService struct {
-	// No client on non-Linux platforms
-}
-
 // ZoneMarkAggregator keeps live counts (zone -> mark -> count).
 type ZoneMarkAggregator struct {
 	// No implementation on non-Linux platforms
 }
 
-// NewConntrackService creates a new ConntrackService.
-// On non-Linux platforms, this returns an error indicating the feature is not supported.
-func NewConntrackService() (*ConntrackService, error) {
-	return nil, fmt.Errorf("conntrack service is only available on Linux systems")
-}
-
-// NewZoneMarkAggregator creates a new aggregator on top of an existing ConntrackService.
+// NewZoneMarkAggregator creates a new aggregator.
 // On non-Linux platforms, this returns an error.
-func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
+func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
 	return nil, fmt.Errorf("conntrack aggregator is only available on Linux systems")
-}
-
-// Close closes the underlying Netlink connection for conntrack.
-func (s *ConntrackService) Close() error {
-	return nil
-}
-
-// GetStats returns performance counters from the conntrack subsystem.
-// On non-Linux platforms, this returns an error.
-func (s *ConntrackService) GetStats() (*ConntrackPerformanceStats, error) {
-	return nil, fmt.Errorf("conntrack stats are only available on Linux systems")
 }
 
 // Start subscribes to conntrack events and maintains counts.

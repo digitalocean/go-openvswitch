@@ -45,9 +45,8 @@ func newTestClient(conn *genetlink.Conn) (*Client, error) {
 		return nil, err
 	}
 
-	// For testing, we'll skip the conntrack service initialization
+	// For testing, we'll skip the aggregator initialization
 	// since it requires actual kernel conntrack support
-	c.Conntrack = nil
 	c.Agg = nil
 
 	return c, nil

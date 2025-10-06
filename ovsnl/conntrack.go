@@ -80,11 +80,6 @@ type ConntrackPerformanceStats struct {
 	CPUs               int
 }
 
-// ConntrackService manages the connection to the kernel's conntrack via Netlink.
-type ConntrackService struct {
-	// No persistent client - connections created as needed
-}
-
 // zmKey is a compact key for (zone,mark)
 type zmKey struct {
 	zone uint16
@@ -124,7 +119,7 @@ type ZoneMarkAggregator struct {
 }
 
 // NewZoneMarkAggregator creates a new aggregator with its own listening connection.
-func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
+func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
 	log.Printf("Creating new conntrack zone mark aggregator...")
 
 	// Create a separate connection for listening to events
@@ -133,7 +128,6 @@ func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
 		return nil, fmt.Errorf("failed to create listening connection: %w", err)
 	}
 
-	// Try to increase socket buffers (best-effort) - scaled for 20-droplet DDoS
 	if err := listenCli.SetReadBuffer(64 * 1024 * 1024); err != nil { // 64MB buffer for 1.4M events/sec
 		log.Printf("Warning: Failed to set read buffer size: %v", err)
 	}
@@ -158,14 +152,6 @@ func NewZoneMarkAggregator(s *ConntrackService) (*ZoneMarkAggregator, error) {
 	return a, nil
 }
 
-func NewConntrackService() (*ConntrackService, error) {
-	return &ConntrackService{}, nil
-}
-
-func (s *ConntrackService) Close() error {
-	return nil
-}
-
 // Start subscribes to NEW/DESTROY/UPDATE events and maintains counts with bounded ingestion.
 func (a *ZoneMarkAggregator) Start() error {
 	log.Printf("Starting conntrack event listener with bounded ingestion + DESTROY aggregation...")
@@ -182,12 +168,10 @@ func (a *ZoneMarkAggregator) Start() error {
 	go a.startHealthMonitoring()
 
 	go func() {
-		log.Printf("Initial snapshot DISABLED (to avoid OOM on large tables). Starting from empty baseline and relying on events.")
 		a.initialSnapshotComplete = true
 		a.initialSnapshotError = nil
 	}()
 
-	log.Printf("Conntrack aggregator started (workers=%d, eventChan=%d)", eventWorkerCount, eventChanSize)
 	return nil
 }
 
@@ -223,9 +207,9 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 				}
 			case ev := <-libEvents:
 				// Log every 1000 events to verify events are being received from netlink
-				if eventCount%1000 == 0 {
-					log.Printf("Received event from netlink: type=%d, zone=%d, mark=%d", ev.Type, ev.Flow.Zone, ev.Flow.Mark)
-				}
+				// if eventCount%1000 == 0 {
+				// 	log.Printf("Received event from netlink: type=%d, zone=%d, mark=%d", ev.Type, ev.Flow.Zone, ev.Flow.Mark)
+				// }
 
 				select {
 				case a.eventsCh <- ev:
@@ -258,7 +242,6 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 
 // eventWorker consumes events from eventsCh and handles them
 func (a *ZoneMarkAggregator) eventWorker(id int) {
-	log.Printf("Event worker %d started", id)
 	processedCount := 0
 
 	for {
@@ -269,9 +252,6 @@ func (a *ZoneMarkAggregator) eventWorker(id int) {
 		case ev := <-a.eventsCh:
 			a.handleEvent(ev)
 			processedCount++
-			if processedCount%1000 == 0 {
-				log.Printf("Event worker %d: processed %d events", id, processedCount)
-			}
 			if atomic.LoadInt64(&a.eventCount)%100 == 0 {
 				runtime.Gosched()
 			}
@@ -285,10 +265,10 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 	key := zmKey{zone: f.Zone, mark: f.Mark}
 
 	// Log every 1000 events to verify events are being processed
-	eventCount := atomic.LoadInt64(&a.eventCount)
-	if eventCount%1000 == 0 {
-		log.Printf("handleEvent: processed %d events, current event type=%d", eventCount, ev.Type)
-	}
+	// eventCount := atomic.LoadInt64(&a.eventCount)
+	// if eventCount%1000 == 0 {
+	// 	log.Printf("handleEvent: processed %d events, current event type=%d", eventCount, ev.Type)
+	// }
 
 	if ev.Type == conntrack.EventNew {
 		a.mu.Lock()
@@ -306,7 +286,6 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 		a.deltaMu.Lock()
 		if len(a.destroyDeltas) < destroyDeltaCap {
 			a.destroyDeltas[key]++
-			// Immediate flush for large delta batches during 20-droplet DDoS to minimize lag
 			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
 				deltas := a.destroyDeltas
 				a.destroyDeltas = make(map[zmKey]int)
@@ -332,7 +311,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 
 // applyDeltasImmediately applies deltas immediately to minimize lag during extreme load
 func (a *ZoneMarkAggregator) applyDeltasImmediately(deltas map[zmKey]int) {
-	log.Printf("applyDeltasImmediately: processing %d delta entries (immediate flush for 20-droplet DDoS)", len(deltas))
+	log.Printf("applyDeltasImmediately: processing %d delta entries", len(deltas))
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -383,14 +362,14 @@ func (a *ZoneMarkAggregator) destroyFlusher() {
 			eventRate := a.eventRate
 			a.mu.RUnlock()
 
-			if eventRate > 500000 { // Very high event rate (>500K/sec) - 20-droplet DDoS
+			if eventRate > 500000 { // Very high event rate (>500K/sec)
 				// Flush immediately and reset ticker for faster interval
 				a.flushDestroyDeltas()
 				ticker.Reset(50 * time.Millisecond) // 50ms during extreme load
-			} else if eventRate > 100000 { // High event rate (>100K/sec) - 10-droplet DDoS
+			} else if eventRate > 100000 { // High event rate (>100K/sec)
 				a.flushDestroyDeltas()
 				ticker.Reset(100 * time.Millisecond) // 100ms during high load
-			} else if eventRate > 10000 { // Medium event rate (>10K/sec) - 2-3 droplets
+			} else if eventRate > 10000 { // Medium event rate (>10K/sec)
 				a.flushDestroyDeltas()
 				ticker.Reset(200 * time.Millisecond) // 200ms during medium load
 			} else {
@@ -463,18 +442,18 @@ func (a *ZoneMarkAggregator) Snapshot() map[uint16]map[uint32]int {
 	return out
 }
 
-// GetTotalCount returns the total counted entries (best-effort)
-func (a *ZoneMarkAggregator) GetTotalCount() int {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	total := 0
-	for _, marks := range a.counts {
-		for _, c := range marks {
-			total += c
-		}
-	}
-	return total
-}
+// // GetTotalCount returns the total counted entries (best-effort)
+// func (a *ZoneMarkAggregator) GetTotalCount() int {
+// 	a.mu.RLock()
+// 	defer a.mu.RUnlock()
+// 	total := 0
+// 	for _, marks := range a.counts {
+// 		for _, c := range marks {
+// 			total += c
+// 		}
+// 	}
+// 	return total
+// }
 
 // startHealthMonitoring periodically logs aggregator health
 func (a *ZoneMarkAggregator) startHealthMonitoring() {
@@ -496,8 +475,8 @@ func (a *ZoneMarkAggregator) performHealthCheck() {
 	eventCount := atomic.LoadInt64(&a.eventCount)
 
 	if missed > 0 {
-		log.Printf("Health check: missed_events=%d, event_count=%d, event_rate=%.2f, total_count=%d",
-			missed, eventCount, a.eventRate, a.GetTotalCount())
+		log.Printf("Health check: missed_events=%d, event_count=%d, event_rate=%.2f",
+			missed, eventCount, a.eventRate)
 	}
 	if missed > dropsWarnThreshold {
 		log.Printf("Health check: missed events exceeded threshold (%d); attempting listener restart", missed)
@@ -521,20 +500,6 @@ func (a *ZoneMarkAggregator) Stop() {
 	a.flushDestroyDeltas()
 }
 
-// IsHealthy checks if the aggregator is in a healthy state
-func (a *ZoneMarkAggregator) IsHealthy() bool {
-	if a.initialSnapshotComplete && a.initialSnapshotError != nil {
-		return false
-	}
-	if time.Since(a.lastEventTime) > 10*time.Minute {
-		return false
-	}
-	if atomic.LoadInt64(&a.missedEvents) > 100000 {
-		return false
-	}
-	return true
-}
-
 // RestartListener attempts to restart the conntrack event listener
 func (a *ZoneMarkAggregator) RestartListener() error {
 	log.Printf("Attempting to restart conntrack event listener...")
@@ -547,10 +512,4 @@ func (a *ZoneMarkAggregator) RestartListener() error {
 	}
 	a.listenCli = listenCli
 	return a.startEventListener()
-}
-
-// ForceSync performs a manual sync (disabled for large tables)
-func (a *ZoneMarkAggregator) ForceSync() error {
-	log.Printf("ForceSync: disabled to avoid OOM with large conntrack tables")
-	return fmt.Errorf("ForceSync disabled")
 }
