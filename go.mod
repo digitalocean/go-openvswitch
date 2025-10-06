@@ -5,7 +5,7 @@ go 1.24
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/mdlayher/genetlink v1.0.0
+	github.com/mdlayher/genetlink v1.3.2
 	github.com/mdlayher/netlink v1.7.2
 	github.com/ti-mo/conntrack v0.5.2
 	github.com/ti-mo/netfilter v0.5.3
