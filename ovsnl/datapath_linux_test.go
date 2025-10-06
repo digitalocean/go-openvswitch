@@ -33,7 +33,8 @@ import (
 func TestClientDatapathListShortHeader(t *testing.T) {
 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Not enough data for ovsh.Header.
-		t.Logf("Mock called with command: %d, data length: %d", greq.Header.Command, len(greq.Data))
+		t.Logf("🔍 Mock called with command: %d, data length: %d", greq.Header.Command, len(greq.Data))
+		t.Logf("🔍 Mock returning short data: %v", []byte{0xff, 0xff})
 		return []genetlink.Message{
 			{
 				Data: []byte{0xff, 0xff},
