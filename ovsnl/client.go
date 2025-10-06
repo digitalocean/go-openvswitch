@@ -145,6 +145,7 @@ func headerBytes(h ovsh.Header) []byte {
 func parseHeader(b []byte) (ovsh.Header, error) {
 	// Verify that the byte slice is long enough before doing unsafe casts.
 	if l := len(b); l < sizeofHeader {
+		fmt.Printf("🔍 parseHeader: not enough data - got %d bytes, need %d\n", l, sizeofHeader)
 		return ovsh.Header{}, fmt.Errorf("not enough data for OVS message header: %d bytes", l)
 	}
 

@@ -34,6 +34,7 @@ import (
 func TestClientDatapathListShortHeader(t *testing.T) {
 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Not enough data for ovsh.Header.
+		t.Logf("🔍 Mock returning short data: %v", []byte{0xff, 0xff})
 		return []genetlink.Message{
 			{
 				Data: []byte{0xff, 0xff}, // Only 2 bytes, but sizeofHeader is 4
@@ -47,13 +48,7 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 	}
 	defer c.Close()
 
-	if c.Datapath == nil {
-		t.Fatalf("Datapath service is nil - mock not properly initialized")
-	}
-
 	t.Logf("🔍 About to call c.Datapath.List()")
-	fmt.Printf("🔍 About to call c.Datapath.List()\n")
-
 	_, err = c.Datapath.List()
 	if err == nil {
 		t.Fatalf("expected an error, but none occurred")

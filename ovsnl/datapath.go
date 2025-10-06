@@ -170,6 +170,7 @@ func parseDPStats(b []byte) (DatapathStats, error) {
 	// Verify that the byte slice is the correct length before doing
 	// unsafe casts.
 	if want, got := sizeofDPStats, len(b); want != got {
+		fmt.Printf("🔍 parseDPStats: wrong size - got %d bytes, need %d\n", got, want)
 		return DatapathStats{}, fmt.Errorf("unexpected datapath stats structure size, want %d, got %d", want, got)
 	}
 
@@ -187,6 +188,7 @@ func parseDPMegaflowStats(b []byte) (DatapathMegaflowStats, error) {
 	// Verify that the byte slice is the correct length before doing
 	// unsafe casts.
 	if want, got := sizeofDPMegaflowStats, len(b); want != got {
+		fmt.Printf("🔍 parseDPMegaflowStats: wrong size - got %d bytes, need %d\n", got, want)
 		return DatapathMegaflowStats{}, fmt.Errorf("unexpected datapath megaflow stats structure size, want %d, got %d", want, got)
 	}
 
