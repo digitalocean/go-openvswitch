@@ -18,18 +18,12 @@
 package ovsnl_test
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"testing"
 
 	"github.com/digitalocean/go-openvswitch/ovsnl"
-	"github.com/digitalocean/go-openvswitch/ovsnl/internal/ovsh"
 	"github.com/google/go-cmp/cmp"
-	"github.com/mdlayher/genetlink"
-	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
-	"golang.org/x/sys/unix"
 )
 
 func TestLinuxClientIntegration(t *testing.T) {
@@ -109,49 +103,49 @@ func testClientDatapath(t *testing.T, c *ovsnl.Client, datapath string) {
 // }
 
 // ovsFamilies creates a test handler that returns OVS family messages
-func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)) func(genetlink.Message, netlink.Message) ([]genetlink.Message, error) {
-	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		// Handle family listing requests
-		if greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
-			return familyMessages([]string{
-				ovsh.DatapathFamily,
-			}), nil
-		}
+// func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)) func(genetlink.Message, netlink.Message) ([]genetlink.Message, error) {
+// 	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+// 		// Handle family listing requests
+// 		if greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
+// 			return familyMessages([]string{
+// 				ovsh.DatapathFamily,
+// 			}), nil
+// 		}
 
-		// Handle actual datapath requests
-		return handler(greq, nreq)
-	}
-}
+// 		// Handle actual datapath requests
+// 		return handler(greq, nreq)
+// 	}
+// }
 
-func familyMessages(families []string) []genetlink.Message {
-	msgs := make([]genetlink.Message, 0, len(families))
+// func familyMessages(families []string) []genetlink.Message {
+// 	msgs := make([]genetlink.Message, 0, len(families))
 
-	var id uint16
-	for _, f := range families {
-		msgs = append(msgs, genetlink.Message{
-			Data: mustMarshalAttributes([]netlink.Attribute{
-				{
-					Type: unix.CTRL_ATTR_FAMILY_ID,
-					Data: nlenc.Uint16Bytes(id),
-				},
-				{
-					Type: unix.CTRL_ATTR_FAMILY_NAME,
-					Data: nlenc.Bytes(f),
-				},
-			}),
-		})
+// 	var id uint16
+// 	for _, f := range families {
+// 		msgs = append(msgs, genetlink.Message{
+// 			Data: mustMarshalAttributes([]netlink.Attribute{
+// 				{
+// 					Type: unix.CTRL_ATTR_FAMILY_ID,
+// 					Data: nlenc.Uint16Bytes(id),
+// 				},
+// 				{
+// 					Type: unix.CTRL_ATTR_FAMILY_NAME,
+// 					Data: nlenc.Bytes(f),
+// 				},
+// 			}),
+// 		})
 
-		id++
-	}
+// 		id++
+// 	}
 
-	return msgs
-}
+// 	return msgs
+// }
 
-func mustMarshalAttributes(attrs []netlink.Attribute) []byte {
-	b, err := netlink.MarshalAttributes(attrs)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal attributes: %v", err))
-	}
+// func mustMarshalAttributes(attrs []netlink.Attribute) []byte {
+// 	b, err := netlink.MarshalAttributes(attrs)
+// 	if err != nil {
+// 		panic(fmt.Sprintf("failed to marshal attributes: %v", err))
+// 	}
 
-	return b
-}
+// 	return b
+// }
