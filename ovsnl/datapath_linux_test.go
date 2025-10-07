@@ -49,8 +49,12 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 	defer c.Close()
 
 	t.Logf("🔍 About to call c.Datapath.List()")
-	_, err = c.Datapath.List()
+	dps, err := c.Datapath.List()
 	if err == nil {
+		t.Logf("🔍 DEBUG: No error occurred, got %d datapaths", len(dps))
+		for i, dp := range dps {
+			t.Logf("🔍 DEBUG: Datapath[%d]: Index=%d, Name=%q", i, dp.Index, dp.Name)
+		}
 		t.Fatalf("expected an error, but none occurred")
 	}
 
@@ -117,6 +121,49 @@ func TestClientDatapathListBadMegaflowStats(t *testing.T) {
 	t.Logf("OK error: %v", err)
 }
 
+func TestClientDatapathListDebug(t *testing.T) {
+	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+		// Return some test data to see what we get
+		return []genetlink.Message{
+			{
+				Data: append(
+					// ovsh.Header (4 bytes).
+					[]byte{0x01, 0x02, 0x03, 0x04},
+					// netlink attributes.
+					mustMarshalAttributes([]netlink.Attribute{
+						{
+							Type: ovsh.DpAttrName,
+							Data: nlenc.Bytes("test-datapath"),
+						},
+						{
+							Type: ovsh.DpAttrUserFeatures,
+							Data: nlenc.Uint32Bytes(0x03), // Some features
+						},
+					})...,
+				),
+			},
+		}, nil
+	}))
+
+	c, err := newTestClient(conn)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	defer c.Close()
+
+	dps, err := c.Datapath.List()
+	if err != nil {
+		t.Fatalf("failed to list datapaths: %v", err)
+	}
+
+	t.Logf("🔍 DEBUG: Got %d datapaths", len(dps))
+	for i, dp := range dps {
+		t.Logf("🔍 DEBUG: Datapath[%d]: Index=%d, Name=%q, Features=%s", i, dp.Index, dp.Name, dp.Features)
+		t.Logf("🔍 DEBUG: Stats: Hit=%d, Missed=%d, Lost=%d, Flows=%d", dp.Stats.Hit, dp.Stats.Missed, dp.Stats.Lost, dp.Stats.Flows)
+		t.Logf("🔍 DEBUG: MegaflowStats: MaskHits=%d, Masks=%d", dp.MegaflowStats.MaskHits, dp.MegaflowStats.Masks)
+	}
+}
+
 func TestClientDatapathListOK(t *testing.T) {
 	system := Datapath{
 		Name:     "ovs-system",
@@ -166,6 +213,14 @@ func TestClientDatapathListOK(t *testing.T) {
 	dps, err := c.Datapath.List()
 	if err != nil {
 		t.Fatalf("failed to list datapaths: %v", err)
+	}
+
+	// Debug: Print what we actually got
+	t.Logf("🔍 DEBUG: Got %d datapaths", len(dps))
+	for i, dp := range dps {
+		t.Logf("🔍 DEBUG: Datapath[%d]: Index=%d, Name=%q, Features=%s", i, dp.Index, dp.Name, dp.Features)
+		t.Logf("🔍 DEBUG: Stats: Hit=%d, Missed=%d, Lost=%d, Flows=%d", dp.Stats.Hit, dp.Stats.Missed, dp.Stats.Lost, dp.Stats.Flows)
+		t.Logf("🔍 DEBUG: MegaflowStats: MaskHits=%d, Masks=%d", dp.MegaflowStats.MaskHits, dp.MegaflowStats.Masks)
 	}
 
 	if diff := cmp.Diff(1, len(dps)); diff != "" {
