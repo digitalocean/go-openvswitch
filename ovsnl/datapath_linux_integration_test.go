@@ -28,7 +28,7 @@ func TestClientDatapathListIntegration(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	c, err := NewClient()
+	c, err := New()
 	if err != nil {
 		t.Skipf("skipping integration test: %v", err)
 	}
