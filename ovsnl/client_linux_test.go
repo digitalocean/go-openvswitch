@@ -30,12 +30,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// newTestClient creates a test client with a mock genetlink connection
 func newTestClient(conn *genetlink.Conn) (*Client, error) {
 	c := &Client{}
 	c.c = conn
 
-	// Initialize services.
 	families, err := c.c.ListFamilies()
 	if err != nil {
 		return nil, err
@@ -45,10 +43,13 @@ func newTestClient(conn *genetlink.Conn) (*Client, error) {
 		return nil, err
 	}
 
-	// For testing, we'll skip the aggregator initialization
-	// since it requires actual kernel conntrack support
-	c.Agg = nil
+	// ✅ Inject our mock connection directly into the datapath service
+	if c.Datapath != nil {
+		c.Datapath.c = c
+		c.c = conn
+	}
 
+	c.Agg = nil
 	return c, nil
 }
 

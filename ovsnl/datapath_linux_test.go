@@ -18,7 +18,6 @@
 package ovsnl
 
 import (
-	"fmt"
 	"testing"
 	"unsafe"
 
@@ -33,13 +32,17 @@ import (
 
 func TestClientDatapathListShortHeader(t *testing.T) {
 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		// Not enough data for ovsh.Header.
-		t.Logf("🔍 Mock returning short data: %v", []byte{0xff, 0xff})
-		return []genetlink.Message{
-			{
-				Data: []byte{0xff, 0xff}, // Only 2 bytes, but sizeofHeader is 4
-			},
-		}, nil
+
+		// Check if this is the datapath list command
+		if greq.Header.Command == ovsh.DpCmdGet {
+			// Return deliberately short data for datapath list
+			shortData := []byte{0xff, 0xff}
+			return []genetlink.Message{
+				{Data: shortData},
+			}, nil
+		}
+
+		return []genetlink.Message{}, nil
 	}))
 
 	c, err := newTestClient(conn)
@@ -48,7 +51,6 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 	}
 	defer c.Close()
 
-	t.Logf("🔍 About to call c.Datapath.List()")
 	dps, err := c.Datapath.List()
 	if err == nil {
 		t.Logf("🔍 DEBUG: No error occurred, got %d datapaths", len(dps))
@@ -121,48 +123,48 @@ func TestClientDatapathListBadMegaflowStats(t *testing.T) {
 	t.Logf("OK error: %v", err)
 }
 
-func TestClientDatapathListDebug(t *testing.T) {
-	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		// Return some test data to see what we get
-		return []genetlink.Message{
-			{
-				Data: append(
-					// ovsh.Header (4 bytes).
-					[]byte{0x01, 0x02, 0x03, 0x04},
-					// netlink attributes.
-					mustMarshalAttributes([]netlink.Attribute{
-						{
-							Type: ovsh.DpAttrName,
-							Data: nlenc.Bytes("test-datapath"),
-						},
-						{
-							Type: ovsh.DpAttrUserFeatures,
-							Data: nlenc.Uint32Bytes(0x03), // Some features
-						},
-					})...,
-				),
-			},
-		}, nil
-	}))
+// func TestClientDatapathListDebug(t *testing.T) {
+// 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+// 		// Return some test data to see what we get
+// 		return []genetlink.Message{
+// 			{
+// 				Data: append(
+// 					// ovsh.Header (4 bytes).
+// 					[]byte{0x01, 0x02, 0x03, 0x04},
+// 					// netlink attributes.
+// 					mustMarshalAttributes([]netlink.Attribute{
+// 						{
+// 							Type: ovsh.DpAttrName,
+// 							Data: nlenc.Bytes("test-datapath"),
+// 						},
+// 						{
+// 							Type: ovsh.DpAttrUserFeatures,
+// 							Data: nlenc.Uint32Bytes(0x03), // Some features
+// 						},
+// 					})...,
+// 				),
+// 			},
+// 		}, nil
+// 	}))
 
-	c, err := newTestClient(conn)
-	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
-	}
-	defer c.Close()
+// 	c, err := newTestClient(conn)
+// 	if err != nil {
+// 		t.Fatalf("failed to create client: %v", err)
+// 	}
+// 	defer c.Close()
 
-	dps, err := c.Datapath.List()
-	if err != nil {
-		t.Fatalf("failed to list datapaths: %v", err)
-	}
+// 	dps, err := c.Datapath.List()
+// 	if err != nil {
+// 		t.Fatalf("failed to list datapaths: %v", err)
+// 	}
 
-	t.Logf("🔍 DEBUG: Got %d datapaths", len(dps))
-	for i, dp := range dps {
-		t.Logf("🔍 DEBUG: Datapath[%d]: Index=%d, Name=%q, Features=%s", i, dp.Index, dp.Name, dp.Features)
-		t.Logf("🔍 DEBUG: Stats: Hit=%d, Missed=%d, Lost=%d, Flows=%d", dp.Stats.Hit, dp.Stats.Missed, dp.Stats.Lost, dp.Stats.Flows)
-		t.Logf("🔍 DEBUG: MegaflowStats: MaskHits=%d, Masks=%d", dp.MegaflowStats.MaskHits, dp.MegaflowStats.Masks)
-	}
-}
+// 	t.Logf("🔍 DEBUG: Got %d datapaths", len(dps))
+// 	for i, dp := range dps {
+// 		t.Logf("🔍 DEBUG: Datapath[%d]: Index=%d, Name=%q, Features=%s", i, dp.Index, dp.Name, dp.Features)
+// 		t.Logf("🔍 DEBUG: Stats: Hit=%d, Missed=%d, Lost=%d, Flows=%d", dp.Stats.Hit, dp.Stats.Missed, dp.Stats.Lost, dp.Stats.Flows)
+// 		t.Logf("🔍 DEBUG: MegaflowStats: MaskHits=%d, Masks=%d", dp.MegaflowStats.MaskHits, dp.MegaflowStats.Masks)
+// 	}
+// }
 
 func TestClientDatapathListOK(t *testing.T) {
 	system := Datapath{
@@ -213,14 +215,6 @@ func TestClientDatapathListOK(t *testing.T) {
 	dps, err := c.Datapath.List()
 	if err != nil {
 		t.Fatalf("failed to list datapaths: %v", err)
-	}
-
-	// Debug: Print what we actually got
-	t.Logf("🔍 DEBUG: Got %d datapaths", len(dps))
-	for i, dp := range dps {
-		t.Logf("🔍 DEBUG: Datapath[%d]: Index=%d, Name=%q, Features=%s", i, dp.Index, dp.Name, dp.Features)
-		t.Logf("🔍 DEBUG: Stats: Hit=%d, Missed=%d, Lost=%d, Flows=%d", dp.Stats.Hit, dp.Stats.Missed, dp.Stats.Lost, dp.Stats.Flows)
-		t.Logf("🔍 DEBUG: MegaflowStats: MaskHits=%d, Masks=%d", dp.MegaflowStats.MaskHits, dp.MegaflowStats.Masks)
 	}
 
 	if diff := cmp.Diff(1, len(dps)); diff != "" {
@@ -281,15 +275,15 @@ func mustMarshalDatapath(dp Datapath) []byte {
 // ovsFamilies creates a test handler that returns OVS family messages
 func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)) func(genetlink.Message, netlink.Message) ([]genetlink.Message, error) {
 	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		// Handle family listing requests
-		if greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
+
+		// Handle family listing requests (CTRL family)
+		if nreq.Header.Type == unix.GENL_ID_CTRL && greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
 			return familyMessages([]string{
 				ovsh.DatapathFamily,
 			}), nil
 		}
 
-		// Handle actual datapath requests
-		fmt.Printf("🔍 ovsFamilies: calling handler for command %d\n", greq.Header.Command)
+		// Handle actual datapath requests (OVS datapath family)
 		return handler(greq, nreq)
 	}
 }

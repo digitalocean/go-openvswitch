@@ -28,14 +28,6 @@ import (
 
 func TestLinuxClientIntegration(t *testing.T) {
 
-	// Skip this test in CI or other automated environments where the OVS
-	// kernel/netlink families are not present. GitHub Actions (and many CI
-	// runners) set CI=true; additionally users can set SKIP_LIVE_TESTS=1 to
-	// force skipping locally.
-	// if os.Getenv("CI") == "true" || os.Getenv("SKIP_LIVE_TESTS") == "1" {
-	// 	t.Skip("Skipping live OVS integration tests in CI / SKIP_LIVE_TESTS environment")
-	// }
-
 	c, err := ovsnl.New()
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -77,75 +69,3 @@ func testClientDatapath(t *testing.T, c *ovsnl.Client, datapath string) {
 		t.Fatalf("unexpected datapath name (-want +got):\n%s", diff)
 	}
 }
-
-// func TestClientDatapathListShortHeader(t *testing.T) {
-// 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-// 		// Not enough data for ovsh.Header - this should trigger an error
-// 		return []genetlink.Message{
-// 			{
-// 				Data: []byte{0xff, 0xff}, // Only 2 bytes, but header needs more
-// 			},
-// 		}, nil
-// 	}))
-
-// 	c, err := ovsnl.New()
-// 	if err != nil {
-// 		t.Fatalf("failed to create client: %v", err)
-// 	}
-// 	defer c.Close()
-
-// 	_, err = c.Datapath.List()
-// 	if err == nil {
-// 		t.Fatalf("expected an error due to short header, but none occurred")
-// 	}
-
-// 	t.Logf("OK error: %v", err)
-// }
-
-// ovsFamilies creates a test handler that returns OVS family messages
-// func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)) func(genetlink.Message, netlink.Message) ([]genetlink.Message, error) {
-// 	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-// 		// Handle family listing requests
-// 		if greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
-// 			return familyMessages([]string{
-// 				ovsh.DatapathFamily,
-// 			}), nil
-// 		}
-
-// 		// Handle actual datapath requests
-// 		return handler(greq, nreq)
-// 	}
-// }
-
-// func familyMessages(families []string) []genetlink.Message {
-// 	msgs := make([]genetlink.Message, 0, len(families))
-
-// 	var id uint16
-// 	for _, f := range families {
-// 		msgs = append(msgs, genetlink.Message{
-// 			Data: mustMarshalAttributes([]netlink.Attribute{
-// 				{
-// 					Type: unix.CTRL_ATTR_FAMILY_ID,
-// 					Data: nlenc.Uint16Bytes(id),
-// 				},
-// 				{
-// 					Type: unix.CTRL_ATTR_FAMILY_NAME,
-// 					Data: nlenc.Bytes(f),
-// 				},
-// 			}),
-// 		})
-
-// 		id++
-// 	}
-
-// 	return msgs
-// }
-
-// func mustMarshalAttributes(attrs []netlink.Attribute) []byte {
-// 	b, err := netlink.MarshalAttributes(attrs)
-// 	if err != nil {
-// 		panic(fmt.Sprintf("failed to marshal attributes: %v", err))
-// 	}
-
-// 	return b
-// }
