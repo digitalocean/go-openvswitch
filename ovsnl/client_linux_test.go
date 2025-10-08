@@ -43,7 +43,7 @@ func newTestClient(conn *genetlink.Conn) (*Client, error) {
 		return nil, err
 	}
 
-	// ✅ Inject our mock connection directly into the datapath service
+	// Inject our mock connection directly into the datapath service
 	if c.Datapath != nil {
 		c.Datapath.c = c
 		c.c = conn
