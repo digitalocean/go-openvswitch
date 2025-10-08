@@ -27,6 +27,7 @@ import (
 )
 
 func TestLinuxClientIntegration(t *testing.T) {
+
 	c, err := ovsnl.New()
 	if err != nil {
 		if os.IsNotExist(err) {

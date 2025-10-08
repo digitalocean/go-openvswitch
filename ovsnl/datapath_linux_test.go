@@ -32,12 +32,17 @@ import (
 
 func TestClientDatapathListShortHeader(t *testing.T) {
 	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		// Not enough data for ovsh.Header.
-		return []genetlink.Message{
-			{
-				Data: []byte{0xff, 0xff},
-			},
-		}, nil
+
+		// Check if this is the datapath list command
+		if greq.Header.Command == ovsh.DpCmdGet {
+			// Return deliberately short data for datapath list
+			shortData := []byte{0xff, 0xff}
+			return []genetlink.Message{
+				{Data: shortData},
+			}, nil
+		}
+
+		return []genetlink.Message{}, nil
 	}))
 
 	c, err := newTestClient(conn)
@@ -46,8 +51,9 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 	}
 	defer c.Close()
 
-	_, err = c.Datapath.List()
-	if err == nil {
+	_, errDatapath := c.Datapath.List()
+	if errDatapath == nil {
+
 		t.Fatalf("expected an error, but none occurred")
 	}
 
@@ -59,12 +65,12 @@ func TestClientDatapathListBadStats(t *testing.T) {
 		// Valid header; not enough data for ovsh.DPStats.
 		return []genetlink.Message{{
 			Data: append(
-				// ovsh.Header.
+				// ovsh.Header (4 bytes).
 				[]byte{0xff, 0xff, 0xff, 0xff},
 				// netlink attributes.
 				mustMarshalAttributes([]netlink.Attribute{{
 					Type: ovsh.DpAttrStats,
-					Data: []byte{0xff},
+					Data: []byte{0xff}, // Only 1 byte, but sizeofDPStats is 32 bytes
 				}})...,
 			),
 		}}, nil
@@ -89,12 +95,12 @@ func TestClientDatapathListBadMegaflowStats(t *testing.T) {
 		// Valid header; not enough data for ovsh.DPMegaflowStats.
 		return []genetlink.Message{{
 			Data: append(
-				// ovsh.Header.
+				// ovsh.Header (4 bytes).
 				[]byte{0xff, 0xff, 0xff, 0xff},
 				// netlink attributes.
 				mustMarshalAttributes([]netlink.Attribute{{
 					Type: ovsh.DpAttrMegaflowStats,
-					Data: []byte{0xff},
+					Data: []byte{0xff}, // Only 1 byte, but sizeofDPMegaflowStats is 32 bytes
 				}})...,
 			),
 		}}, nil
@@ -223,14 +229,15 @@ func mustMarshalDatapath(dp Datapath) []byte {
 // ovsFamilies creates a test handler that returns OVS family messages
 func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)) func(genetlink.Message, netlink.Message) ([]genetlink.Message, error) {
 	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
-		// Handle family listing requests
-		if greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
+
+		// Handle family listing requests (CTRL family)
+		if nreq.Header.Type == unix.GENL_ID_CTRL && greq.Header.Command == unix.CTRL_CMD_GETFAMILY {
 			return familyMessages([]string{
 				ovsh.DatapathFamily,
 			}), nil
 		}
 
-		// Handle actual datapath requests
+		// Handle actual datapath requests (OVS datapath family)
 		return handler(greq, nreq)
 	}
 }
