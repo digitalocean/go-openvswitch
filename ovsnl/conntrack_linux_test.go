@@ -63,7 +63,7 @@ func TestZoneMarkAggregatorSnapshot(t *testing.T) {
 		t.Fatal("Snapshot() returned nil")
 	}
 
-	// Verify snapshot is a map[zmKey]int
+	// Verify snapshot is a map[ZmKey]int
 	if len(snapshot) == 0 {
 		t.Log("Snapshot is empty (expected in test environment)")
 	}
@@ -81,37 +81,37 @@ func TestZoneMarkAggregatorSnapshot(t *testing.T) {
 }
 
 func TestZmKeyComparison(t *testing.T) {
-	// Test that zmKey works correctly as a map key
-	key1 := zmKey{Zone: 1, Mark: 100}
-	key2 := zmKey{Zone: 1, Mark: 100}
-	key3 := zmKey{Zone: 2, Mark: 100}
-	key4 := zmKey{Zone: 1, Mark: 200}
+	// Test that ZmKey works correctly as a map key
+	key1 := ZmKey{Zone: 1, Mark: 100}
+	key2 := ZmKey{Zone: 1, Mark: 100}
+	key3 := ZmKey{Zone: 2, Mark: 100}
+	key4 := ZmKey{Zone: 1, Mark: 200}
 
 	// Test equality
 	if key1 != key2 {
-		t.Error("Identical zmKey structs should be equal")
+		t.Error("Identical ZmKey structs should be equal")
 	}
 
 	// Test inequality
 	if key1 == key3 {
-		t.Error("Different zone zmKey structs should not be equal")
+		t.Error("Different zone ZmKey structs should not be equal")
 	}
 	if key1 == key4 {
-		t.Error("Different mark zmKey structs should not be equal")
+		t.Error("Different mark ZmKey structs should not be equal")
 	}
 
 	// Test as map keys
-	testMap := make(map[zmKey]int)
+	testMap := make(map[ZmKey]int)
 	testMap[key1] = 5
 	testMap[key3] = 10
 
 	if testMap[key1] != 5 {
-		t.Error("zmKey should work as map key")
+		t.Error("ZmKey should work as map key")
 	}
 	if testMap[key2] != 5 {
-		t.Error("Equal zmKey structs should map to same value")
+		t.Error("Equal ZmKey structs should map to same value")
 	}
 	if testMap[key3] != 10 {
-		t.Error("Different zmKey should map to different value")
+		t.Error("Different ZmKey should map to different value")
 	}
 }

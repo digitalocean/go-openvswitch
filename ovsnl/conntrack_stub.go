@@ -59,8 +59,8 @@ type ConntrackPerformanceStats struct {
 	CPUs               int
 }
 
-// zmKey is a compact key for (zone,mark)
-type zmKey struct {
+// ZmKey is a compact key for (zone,mark)
+type ZmKey struct {
 	Zone uint16
 	Mark uint32
 }
@@ -89,8 +89,8 @@ func (a *ZoneMarkAggregator) Stop() {
 
 // Snapshot returns a safe copy of counts.
 // On non-Linux platforms, this returns an empty map.
-func (a *ZoneMarkAggregator) Snapshot() map[zmKey]int {
-	return make(map[zmKey]int)
+func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
+	return make(map[ZmKey]int)
 }
 
 // PrimeSnapshot tries a guarded one-shot dump to seed counts for long-lived flows.

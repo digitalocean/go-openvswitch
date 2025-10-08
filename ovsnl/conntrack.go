@@ -80,8 +80,8 @@ type ConntrackPerformanceStats struct {
 	CPUs               int
 }
 
-// zmKey is a compact key for (zone,mark)
-type zmKey struct {
+// ZmKey is a compact key for (zone,mark)
+type ZmKey struct {
 	Zone uint16
 	Mark uint32
 }
@@ -89,7 +89,7 @@ type zmKey struct {
 // ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
 	// primary counts (zmKey -> count) - simplified flat mapping
-	counts map[zmKey]int
+	counts map[ZmKey]int
 	mu     sync.RWMutex
 
 	// conntrack listening connection
@@ -104,7 +104,7 @@ type ZoneMarkAggregator struct {
 
 	// aggregated DESTROY deltas (bounded by destroyDeltaCap)
 	deltaMu       sync.Mutex
-	destroyDeltas map[zmKey]int
+	destroyDeltas map[ZmKey]int
 
 	// metrics / health
 	eventCount      int64
@@ -136,12 +136,12 @@ func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
 	}
 
 	a := &ZoneMarkAggregator{
-		counts:                  make(map[zmKey]int),
+		counts:                  make(map[ZmKey]int),
 		listenCli:               listenCli,
 		stopCh:                  make(chan struct{}),
 		stoppedCh:               make(chan struct{}),
 		eventsCh:                make(chan conntrack.Event, eventChanSize),
-		destroyDeltas:           make(map[zmKey]int),
+		destroyDeltas:           make(map[ZmKey]int),
 		lastEventTime:           time.Now(),
 		lastHealthCheck:         time.Now(),
 		initialSnapshotComplete: false,
@@ -262,7 +262,7 @@ func (a *ZoneMarkAggregator) eventWorker(id int) {
 // handleEvent processes a single event.
 func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 	f := ev.Flow
-	key := zmKey{Zone: f.Zone, Mark: f.Mark}
+	key := ZmKey{Zone: f.Zone, Mark: f.Mark}
 
 	// Log every 1000 events to verify events are being processed
 	// eventCount := atomic.LoadInt64(&a.eventCount)
@@ -283,7 +283,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 			a.destroyDeltas[key]++
 			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
 				deltas := a.destroyDeltas
-				a.destroyDeltas = make(map[zmKey]int)
+				a.destroyDeltas = make(map[ZmKey]int)
 				a.deltaMu.Unlock()
 				// Apply deltas immediately to minimize lag during extreme load
 				a.applyDeltasImmediately(deltas)
@@ -305,7 +305,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 }
 
 // applyDeltasImmediately applies deltas immediately to minimize lag during extreme load
-func (a *ZoneMarkAggregator) applyDeltasImmediately(deltas map[zmKey]int) {
+func (a *ZoneMarkAggregator) applyDeltasImmediately(deltas map[ZmKey]int) {
 	log.Printf("applyDeltasImmediately: processing %d delta entries", len(deltas))
 
 	a.mu.Lock()
@@ -380,7 +380,7 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 		return
 	}
 	deltas := a.destroyDeltas
-	a.destroyDeltas = make(map[zmKey]int)
+	a.destroyDeltas = make(map[ZmKey]int)
 	a.deltaMu.Unlock()
 
 	log.Printf("flushDestroyDeltas: processing %d delta entries", len(deltas))
@@ -411,12 +411,12 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 }
 
 // Snapshot returns a safe copy of counts.
-func (a *ZoneMarkAggregator) Snapshot() map[zmKey]int {
+func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
 	a.flushDestroyDeltas()
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	out := make(map[zmKey]int, len(a.counts))
+	out := make(map[ZmKey]int, len(a.counts))
 	for k, c := range a.counts {
 		if c > 0 {
 			out[k] = c
