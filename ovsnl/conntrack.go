@@ -82,14 +82,14 @@ type ConntrackPerformanceStats struct {
 
 // zmKey is a compact key for (zone,mark)
 type zmKey struct {
-	zone uint16
-	mark uint32
+	Zone uint16
+	Mark uint32
 }
 
-// ZoneMarkAggregator keeps live counts (zone -> mark -> count) with bounded ingestion
+// ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
-	// primary counts (zone -> mark -> count)
-	counts map[uint16]map[uint32]int
+	// primary counts (zmKey -> count) - simplified flat mapping
+	counts map[zmKey]int
 	mu     sync.RWMutex
 
 	// conntrack listening connection
@@ -136,7 +136,7 @@ func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
 	}
 
 	a := &ZoneMarkAggregator{
-		counts:                  make(map[uint16]map[uint32]int),
+		counts:                  make(map[zmKey]int),
 		listenCli:               listenCli,
 		stopCh:                  make(chan struct{}),
 		stoppedCh:               make(chan struct{}),
@@ -262,7 +262,7 @@ func (a *ZoneMarkAggregator) eventWorker(id int) {
 // handleEvent processes a single event.
 func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 	f := ev.Flow
-	key := zmKey{zone: f.Zone, mark: f.Mark}
+	key := zmKey{Zone: f.Zone, Mark: f.Mark}
 
 	// Log every 1000 events to verify events are being processed
 	// eventCount := atomic.LoadInt64(&a.eventCount)
@@ -272,12 +272,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 
 	if ev.Type == conntrack.EventNew {
 		a.mu.Lock()
-		zm, ok := a.counts[f.Zone]
-		if !ok {
-			zm = make(map[uint32]int)
-			a.counts[f.Zone] = zm
-		}
-		zm[f.Mark]++
+		a.counts[key]++
 		a.mu.Unlock()
 		return
 	}
@@ -296,7 +291,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 			}
 			// Log every 1000 DESTROY events to verify they're being received
 			if len(a.destroyDeltas)%1000 == 0 {
-				log.Printf("DESTROY events: %d entries in destroyDeltas (zone=%d, mark=%d)", len(a.destroyDeltas), key.zone, key.mark)
+				log.Printf("DESTROY events: %d entries in destroyDeltas (zone=%d, mark=%d)", len(a.destroyDeltas), key.Zone, key.Mark)
 			}
 		} else {
 			atomic.AddInt64(&a.missedEvents, 1)
@@ -318,20 +313,16 @@ func (a *ZoneMarkAggregator) applyDeltasImmediately(deltas map[zmKey]int) {
 
 	totalDecrements := 0
 	for k, cnt := range deltas {
-		zm, ok := a.counts[k.zone]
+		existing, ok := a.counts[k]
 		if !ok {
 			atomic.AddInt64(&a.missedEvents, int64(cnt))
 			continue
 		}
-		existing := zm[k.mark]
 		if existing <= cnt {
-			delete(zm, k.mark)
-			if len(zm) == 0 {
-				delete(a.counts, k.zone)
-			}
+			delete(a.counts, k)
 			totalDecrements += existing
 		} else {
-			zm[k.mark] = existing - cnt
+			a.counts[k] = existing - cnt
 			totalDecrements += cnt
 		}
 	}
@@ -399,20 +390,16 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 
 	totalDecrements := 0
 	for k, cnt := range deltas {
-		zm, ok := a.counts[k.zone]
+		existing, ok := a.counts[k]
 		if !ok {
 			atomic.AddInt64(&a.missedEvents, int64(cnt))
 			continue
 		}
-		existing := zm[k.mark]
 		if existing <= cnt {
-			delete(zm, k.mark)
-			if len(zm) == 0 {
-				delete(a.counts, k.zone)
-			}
+			delete(a.counts, k)
 			totalDecrements += existing
 		} else {
-			zm[k.mark] = existing - cnt
+			a.counts[k] = existing - cnt
 			totalDecrements += cnt
 		}
 	}
@@ -424,36 +411,19 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 }
 
 // Snapshot returns a safe copy of counts.
-func (a *ZoneMarkAggregator) Snapshot() map[uint16]map[uint32]int {
+func (a *ZoneMarkAggregator) Snapshot() map[zmKey]int {
 	a.flushDestroyDeltas()
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	out := make(map[uint16]map[uint32]int, len(a.counts))
-	for z, marks := range a.counts {
-		cp := make(map[uint32]int, len(marks))
-		for m, c := range marks {
-			if c > 0 {
-				cp[m] = c
-			}
+	out := make(map[zmKey]int, len(a.counts))
+	for k, c := range a.counts {
+		if c > 0 {
+			out[k] = c
 		}
-		out[z] = cp
 	}
 	return out
 }
-
-// // GetTotalCount returns the total counted entries (best-effort)
-// func (a *ZoneMarkAggregator) GetTotalCount() int {
-// 	a.mu.RLock()
-// 	defer a.mu.RUnlock()
-// 	total := 0
-// 	for _, marks := range a.counts {
-// 		for _, c := range marks {
-// 			total += c
-// 		}
-// 	}
-// 	return total
-// }
 
 // startHealthMonitoring periodically logs aggregator health
 func (a *ZoneMarkAggregator) startHealthMonitoring() {
