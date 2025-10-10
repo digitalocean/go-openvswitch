@@ -30,7 +30,7 @@ import (
 )
 
 func TestClientDatapathListShortHeader(t *testing.T) {
-	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+	conn := genltest.Dial(genltest.Func(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 
 		// Check if this is the datapath list command
 		if greq.Header.Command == ovsh.DpCmdGet {
@@ -42,7 +42,7 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 		}
 
 		return []genetlink.Message{}, nil
-	}))
+	})))
 
 	c, err := newTestClient(conn)
 	if err != nil {
@@ -60,7 +60,7 @@ func TestClientDatapathListShortHeader(t *testing.T) {
 }
 
 func TestClientDatapathListBadStats(t *testing.T) {
-	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+	conn := genltest.Dial(genltest.Func(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Valid header; not enough data for ovsh.DPStats.
 		return []genetlink.Message{{
 			Data: append(
@@ -73,7 +73,7 @@ func TestClientDatapathListBadStats(t *testing.T) {
 				}})...,
 			),
 		}}, nil
-	}))
+	})))
 
 	c, err := newTestClient(conn)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestClientDatapathListBadStats(t *testing.T) {
 }
 
 func TestClientDatapathListBadMegaflowStats(t *testing.T) {
-	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+	conn := genltest.Dial(genltest.Func(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Valid header; not enough data for ovsh.DPMegaflowStats.
 		return []genetlink.Message{{
 			Data: append(
@@ -103,7 +103,7 @@ func TestClientDatapathListBadMegaflowStats(t *testing.T) {
 				}})...,
 			),
 		}}, nil
-	}))
+	})))
 
 	c, err := newTestClient(conn)
 	if err != nil {
@@ -136,7 +136,7 @@ func TestClientDatapathListOK(t *testing.T) {
 		},
 	}
 
-	conn := genltest.Dial(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
+	conn := genltest.Dial(genltest.Func(ovsFamilies(func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 		// Ensure we are querying the "ovs_datapath" family with the
 		// correct parameters.
 		if diff := cmp.Diff(ovsh.DpCmdGet, int(greq.Header.Command)); diff != "" {
@@ -157,7 +157,7 @@ func TestClientDatapathListOK(t *testing.T) {
 				Data: mustMarshalDatapath(system),
 			},
 		}, nil
-	}))
+	})))
 
 	c, err := newTestClient(conn)
 	if err != nil {
@@ -227,6 +227,7 @@ func mustMarshalDatapath(dp Datapath) []byte {
 
 // ovsFamilies creates a test handler that returns OVS family messages
 type handlerFn func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)
+
 func ovsFamilies(handler handlerFn) handlerFn {
 	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 
