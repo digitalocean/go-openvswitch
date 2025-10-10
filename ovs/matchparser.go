@@ -116,23 +116,23 @@ func parseMatch(key string, value string) (Match, error) {
 }
 
 // parseClampInt calls strconv.Atoi on s, and then ensures that s is less than
-// or equal to the integer specified by max.
-func parseClampInt(s string, max int) (int, error) {
+// or equal to the integer specified by upper.
+func parseClampInt(s string, upper int) (int, error) {
 	t, err := strconv.Atoi(s)
 	if err != nil {
 		return 0, err
 	}
-	if t > max {
-		return 0, fmt.Errorf("integer %d too large; %d > %d", t, t, max)
+	if t > upper {
+		return 0, fmt.Errorf("integer %d too large; %d > %d", t, t, upper)
 	}
 
 	return t, nil
 }
 
 // parseIntMatch parses an integer Match value from the input key and value,
-// with a maximum possible value of max.
-func parseIntMatch(key string, value string, max int) (Match, error) {
-	t, err := parseClampInt(value, max)
+// with a maximum possible value of upper.
+func parseIntMatch(key string, value string, upper int) (Match, error) {
+	t, err := parseClampInt(value, upper)
 	if err != nil {
 		return nil, err
 	}
@@ -176,8 +176,8 @@ func parseIntMatch(key string, value string, max int) (Match, error) {
 }
 
 // parsePort parses a port or port/mask Match value from the input key and value,
-// with a maximum possible value of max.
-func parsePort(key string, value string, max int) (Match, error) {
+// with a maximum possible value of upper.
+func parsePort(key string, value string, upper int) (Match, error) {
 
 	var values []uint64
 	//Split the string
@@ -186,7 +186,7 @@ func parsePort(key string, value string, max int) (Match, error) {
 	//If input is just port
 	switch len(ss) {
 	case 1:
-		val, err := parseClampInt(value, max)
+		val, err := parseClampInt(value, upper)
 		if err != nil {
 			return nil, err
 		}
@@ -200,8 +200,8 @@ func parsePort(key string, value string, max int) (Match, error) {
 				return nil, err
 			}
 			// Return error if val > 65536 (uint16)
-			if val > uint64(max) {
-				return nil, fmt.Errorf("integer %d too large; %d > %d", val, val, max)
+			if val > uint64(upper) {
+				return nil, fmt.Errorf("integer %d too large; %d > %d", val, val, upper)
 			}
 
 			values = append(values, val)

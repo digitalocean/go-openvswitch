@@ -265,7 +265,7 @@ func TestGetCTLimits(t *testing.T) {
 				}
 			case handleError:
 				if err != nil && err.Error() != tt.err {
-					t.Errorf("%s", err.Error())
+					t.Error(err.Error())
 				}
 			default:
 				t.Log("pass")
@@ -346,7 +346,7 @@ func TestGetCTLimitsWithBinary(t *testing.T) {
 				}
 			case handleError:
 				if err != nil && err.Error() != tt.err {
-					t.Errorf("%s", err.Error())
+					t.Error(err.Error())
 				}
 
 			default:
@@ -426,7 +426,7 @@ func TestCtSetLimitsArgsToString(t *testing.T) {
 			got, err := ctSetLimitsArgsToString(tt.zone)
 			if err != nil {
 				if err.Error() != tt.err {
-					t.Errorf("%s", err.Error())
+					t.Error(err.Error())
 				}
 			}
 			if got != tt.want1 && got != tt.want2 {

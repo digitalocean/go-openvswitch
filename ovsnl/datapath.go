@@ -173,7 +173,7 @@ func parseDPStats(b []byte) (DatapathStats, error) {
 		return DatapathStats{}, fmt.Errorf("unexpected datapath stats structure size, want %d, got %d", want, got)
 	}
 
-	s := *(*ovsh.DPStats)(unsafe.Pointer(&b[0]))
+	s := *(*ovsh.DPStats)(unsafe.Pointer(&b[0])) // #nosec G103
 	return DatapathStats{
 		Hit:    s.Hit,
 		Missed: s.Missed,
@@ -190,7 +190,7 @@ func parseDPMegaflowStats(b []byte) (DatapathMegaflowStats, error) {
 		return DatapathMegaflowStats{}, fmt.Errorf("unexpected datapath megaflow stats structure size, want %d, got %d", want, got)
 	}
 
-	s := *(*ovsh.DPMegaflowStats)(unsafe.Pointer(&b[0]))
+	s := *(*ovsh.DPMegaflowStats)(unsafe.Pointer(&b[0])) // #nosec G103
 
 	return DatapathMegaflowStats{
 		MaskHits: s.Mask_hit,

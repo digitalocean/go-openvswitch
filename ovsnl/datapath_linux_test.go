@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build linux
-// +build linux
 
 package ovsnl
 
@@ -194,7 +193,7 @@ func mustMarshalDatapath(dp Datapath) []byte {
 		Flows:  dp.Stats.Flows,
 	}
 
-	sb := *(*[sizeofDPStats]byte)(unsafe.Pointer(&s))
+	sb := *(*[sizeofDPStats]byte)(unsafe.Pointer(&s)) // #nosec G103
 
 	ms := ovsh.DPMegaflowStats{
 		Mask_hit: dp.MegaflowStats.MaskHits,
@@ -202,7 +201,7 @@ func mustMarshalDatapath(dp Datapath) []byte {
 		// Pad already set to zero.
 	}
 
-	msb := *(*[sizeofDPMegaflowStats]byte)(unsafe.Pointer(&ms))
+	msb := *(*[sizeofDPMegaflowStats]byte)(unsafe.Pointer(&ms)) // #nosec G103
 
 	ab := mustMarshalAttributes([]netlink.Attribute{
 		{

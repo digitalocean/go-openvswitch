@@ -51,7 +51,7 @@ func TestConn(t *testing.T, fn TestFunc) (*Conn, chan<- *Response, func()) {
 func TestNetConn(t *testing.T, fn TestFunc) (net.Conn, chan<- *Response, func()) {
 	t.Helper()
 
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", ":0") // #nosec G102
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)
 	}

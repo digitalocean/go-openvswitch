@@ -137,7 +137,7 @@ func (c *Client) initFamily(f genetlink.Family) error {
 
 // headerBytes converts an ovsh.Header into a byte slice.
 func headerBytes(h ovsh.Header) []byte {
-	b := *(*[sizeofHeader]byte)(unsafe.Pointer(&h))
+	b := *(*[sizeofHeader]byte)(unsafe.Pointer(&h)) // #nosec G103
 	return b[:]
 }
 
@@ -148,6 +148,6 @@ func parseHeader(b []byte) (ovsh.Header, error) {
 		return ovsh.Header{}, fmt.Errorf("not enough data for OVS message header: %d bytes", l)
 	}
 
-	h := *(*ovsh.Header)(unsafe.Pointer(&b[:sizeofHeader][0]))
+	h := *(*ovsh.Header)(unsafe.Pointer(&b[:sizeofHeader][0])) // #nosec G103
 	return h, nil
 }
