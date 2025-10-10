@@ -465,7 +465,7 @@ func (a *ZoneMarkAggregator) Stop() {
 	close(a.stopCh)
 	time.Sleep(20 * time.Millisecond)
 	if a.listenCli != nil {
-		a.listenCli.Close()
+		_ = a.listenCli.Close() // Explicitly ignore error in cleanup
 	}
 	a.flushDestroyDeltas()
 }
