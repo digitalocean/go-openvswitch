@@ -20,7 +20,6 @@ package ovsnl
 import (
 	"fmt"
 	"log"
-	"net"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -43,48 +42,6 @@ const (
 	destroyDeltaCap    = 200000                 // maximum distinct (zone,mark) entries in destroyDeltas
 	dropsWarnThreshold = 100                    // threshold of missedEvents to log a stronger warning
 )
-
-// ConntrackEntry represents a single connection tracking entry from the kernel.
-type ConntrackEntry struct {
-	Protocol   string // "tcp", "udp", "icmp" etc.
-	OrigSrc    net.IP
-	OrigDst    net.IP
-	OrigSPort  uint16
-	OrigDPort  uint16
-	ReplySrc   net.IP
-	ReplyDst   net.IP
-	ReplySPort uint16
-	ReplyDPort uint16
-	Zone       uint16
-	Mark       uint32
-	State      string
-}
-
-// ZoneStats holds statistics for a zone
-type ZoneStats struct {
-	TotalCount int
-	Entries    []ConntrackEntry // Only populated if TotalCount > threshold
-}
-
-// ConntrackPerformanceStats represents aggregated performance counters from all CPUs
-type ConntrackPerformanceStats struct {
-	TotalFound         uint32
-	TotalInvalid       uint32
-	TotalIgnore        uint32
-	TotalInsert        uint32
-	TotalInsertFailed  uint32
-	TotalDrop          uint32
-	TotalEarlyDrop     uint32
-	TotalError         uint32
-	TotalSearchRestart uint32
-	CPUs               int
-}
-
-// ZmKey is a compact key for (zone,mark)
-type ZmKey struct {
-	Zone uint16
-	Mark uint32
-}
 
 // ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
