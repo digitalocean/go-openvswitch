@@ -226,7 +226,8 @@ func mustMarshalDatapath(dp Datapath) []byte {
 }
 
 // ovsFamilies creates a test handler that returns OVS family messages
-func ovsFamilies(handler func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)) func(genetlink.Message, netlink.Message) ([]genetlink.Message, error) {
+type handlerFn func(genetlink.Message, netlink.Message) ([]genetlink.Message, error)
+func ovsFamilies(handler handlerFn) handlerFn {
 	return func(greq genetlink.Message, nreq netlink.Message) ([]genetlink.Message, error) {
 
 		// Handle family listing requests (CTRL family)

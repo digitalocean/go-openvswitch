@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build linux && integration
-// +build linux,integration
 
 package ovsnl
 

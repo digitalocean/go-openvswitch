@@ -13,7 +13,6 @@
 // limitations under the License.
 
 //go:build !linux
-// +build !linux
 
 package ovsnl
 
@@ -73,13 +72,13 @@ type ZoneMarkAggregator struct {
 // NewZoneMarkAggregator creates a new aggregator.
 // On non-Linux platforms, this returns an error.
 func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
-	return nil, fmt.Errorf("conntrack aggregator is only available on Linux systems")
+	return nil, errors.ErrUnsupported
 }
 
 // Start subscribes to conntrack events and maintains counts.
 // On non-Linux platforms, this returns an error.
 func (a *ZoneMarkAggregator) Start() error {
-	return fmt.Errorf("conntrack aggregator is only available on Linux systems")
+	return errors.ErrUnsupported
 }
 
 // Stop cancels listening.
@@ -96,5 +95,5 @@ func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
 // PrimeSnapshot tries a guarded one-shot dump to seed counts for long-lived flows.
 // On non-Linux platforms, this returns an error.
 func (a *ZoneMarkAggregator) PrimeSnapshot(ctx context.Context, maxEntries int) error {
-	return fmt.Errorf("conntrack prime snapshot is only available on Linux systems")
+	return errors.ErrUnsupported
 }

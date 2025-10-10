@@ -284,9 +284,9 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
 				deltas := a.destroyDeltas
 				a.destroyDeltas = make(map[ZmKey]int)
-				a.deltaMu.Unlock()
 				// Apply deltas immediately to minimize lag during extreme load
 				a.applyDeltasImmediately(deltas)
+				a.deltaMu.Unlock()
 				return
 			}
 			// Log every 1000 DESTROY events to verify they're being received
@@ -465,7 +465,9 @@ func (a *ZoneMarkAggregator) Stop() {
 	close(a.stopCh)
 	time.Sleep(20 * time.Millisecond)
 	if a.listenCli != nil {
-		_ = a.listenCli.Close() // Explicitly ignore error in cleanup
+		if err := a.listenCli.Close(); err != nil {
+			log.Printf("Error closing listenCli during cleanup: %v", err)
+		}
 	}
 	a.flushDestroyDeltas()
 }

@@ -48,7 +48,6 @@ func newTestClient(conn *genetlink.Conn) (*Client, error) {
 		c.c = conn
 	}
 
-	c.Agg = nil
 	return c, nil
 }
 
