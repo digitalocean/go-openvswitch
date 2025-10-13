@@ -67,9 +67,6 @@ func New() (*Client, error) {
 		return nil, err
 	}
 
-	// Initialize aggregator as nil - will be created when needed
-	c.Agg = nil
-
 	return c, nil
 }
 
