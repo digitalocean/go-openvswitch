@@ -308,8 +308,8 @@ func (a *ZoneMarkAggregator) destroyFlusher() {
 func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 	// First acquire deltaMu to check and swap deltas
 	a.deltaMu.Lock()
+	defer a.deltaMu.Unlock()
 	if len(a.destroyDeltas) == 0 {
-		a.deltaMu.Unlock()
 		return
 	}
 	deltas := a.destroyDeltas
@@ -317,11 +317,7 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 
 	// Now acquire mu while still holding deltaMu to ensure atomicity
 	a.mu.Lock()
-	// Keep deltaMu locked during processing to prevent race conditions
-	defer func() {
-		a.mu.Unlock()
-		a.deltaMu.Unlock()
-	}()
+	defer a.mu.Unlock()
 
 	totalDecrements := 0
 	for k, cnt := range deltas {
