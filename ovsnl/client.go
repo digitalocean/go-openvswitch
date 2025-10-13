@@ -38,7 +38,7 @@ type Client struct {
 	Datapath *DatapathService
 
 	c   *genetlink.Conn
-	Agg *ZoneMarkAggregator
+	Agg *ZoneMarkAggregator // lazily initialized
 }
 
 // New creates a new Linux Open vSwitch generic netlink client.
@@ -75,19 +75,12 @@ func New() (*Client, error) {
 
 // Close closes the Client's generic netlink connection.
 func (c *Client) Close() error {
-	var errs []error
-
 	if c.Agg != nil {
 		c.Agg.Stop()
 	}
 
 	if c.c != nil {
-		if err := c.c.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("errors closing client: %v", errs)
+		return c.c.Close()
 	}
 	return nil
 }
