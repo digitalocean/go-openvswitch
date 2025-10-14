@@ -17,14 +17,8 @@
 package ovsnl
 
 import (
-	"context"
 	"errors"
 )
-
-// ZoneMarkAggregator keeps live counts (zone -> mark -> count).
-type ZoneMarkAggregator struct {
-	// No implementation on non-Linux platforms
-}
 
 // NewZoneMarkAggregator creates a new aggregator.
 // On non-Linux platforms, this returns an error.
@@ -47,10 +41,4 @@ func (a *ZoneMarkAggregator) Stop() {
 // On non-Linux platforms, this returns an empty map.
 func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
 	return make(map[ZmKey]int)
-}
-
-// PrimeSnapshot tries a guarded one-shot dump to seed counts for long-lived flows.
-// On non-Linux platforms, this returns an error.
-func (a *ZoneMarkAggregator) PrimeSnapshot(ctx context.Context, maxEntries int) error {
-	return errors.ErrUnsupported
 }

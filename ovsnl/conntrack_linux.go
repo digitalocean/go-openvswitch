@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -32,48 +31,6 @@ import (
 // Conntrack aggregator with bounded ingestion + DESTROY aggregation
 // to handle massive bursts of conntrack DESTROY events without OOMing.
 //
-
-// Tunables - adjust for your environment
-const (
-	eventChanSize      = 512 * 1024
-	eventWorkerCount   = 100
-	destroyFlushIntvl  = 100 * time.Millisecond // flush aggregated DESTROYs every 100ms for minimal lag
-	destroyDeltaCap    = 200000                 // maximum distinct (zone,mark) entries in destroyDeltas
-	dropsWarnThreshold = 100                    // threshold of missedEvents to log a stronger warning
-)
-
-// ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
-type ZoneMarkAggregator struct {
-	// primary counts (zmKey -> count) - simplified flat mapping
-	counts   map[ZmKey]int
-	countsMu sync.RWMutex
-
-	// conntrack listening connection
-	listenCli *conntrack.Conn
-
-	// lifecycle
-	stopCh    chan struct{}
-	stoppedCh chan struct{}
-	wg        sync.WaitGroup
-
-	// bounded event ingestion
-	eventsCh chan conntrack.Event
-
-	// aggregated DESTROY deltas (bounded by destroyDeltaCap)
-	deltaMu       sync.Mutex
-	destroyDeltas map[ZmKey]int
-
-	// metrics / health
-	eventCount      int64
-	lastEventTime   time.Time
-	eventRate       float64
-	missedEvents    int64
-	lastHealthCheck time.Time
-
-	// initial snapshot state (we keep disabled for huge tables)
-	initialSnapshotComplete bool
-	initialSnapshotError    error
-}
 
 // NewZoneMarkAggregator creates a new aggregator with its own listening connection.
 func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
@@ -92,16 +49,13 @@ func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
 	}
 
 	a := &ZoneMarkAggregator{
-		counts:                  make(map[ZmKey]int),
-		listenCli:               listenCli,
-		stopCh:                  make(chan struct{}),
-		stoppedCh:               make(chan struct{}),
-		eventsCh:                make(chan conntrack.Event, eventChanSize),
-		destroyDeltas:           make(map[ZmKey]int),
-		lastEventTime:           time.Now(),
-		lastHealthCheck:         time.Now(),
-		initialSnapshotComplete: false,
-		initialSnapshotError:    nil,
+		counts:          make(map[ZmKey]int),
+		listenCli:       listenCli,
+		stopCh:          make(chan struct{}),
+		eventsCh:        make(chan conntrack.Event, eventChanSize),
+		destroyDeltas:   make(map[ZmKey]int),
+		lastEventTime:   time.Now(),
+		lastHealthCheck: time.Now(),
 	}
 
 	return a, nil
@@ -124,11 +78,6 @@ func (a *ZoneMarkAggregator) Start() error {
 
 	a.wg.Add(1)
 	go a.startHealthMonitoring()
-
-	go func() {
-		a.initialSnapshotComplete = true
-		a.initialSnapshotError = nil
-	}()
 
 	return nil
 }
@@ -258,7 +207,6 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 // applyDeltasImmediatelyUnsafe applies deltas immediately to minimize lag during extreme load
 // This method assumes countsMu is already held by the caller
 func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) {
-	totalDecrements := 0
 	for k, cnt := range deltas {
 		existing, ok := a.counts[k]
 		if !ok {
@@ -267,10 +215,8 @@ func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) 
 		}
 		if existing <= cnt {
 			delete(a.counts, k)
-			totalDecrements += existing
 		} else {
 			a.counts[k] = existing - cnt
-			totalDecrements += cnt
 		}
 	}
 }

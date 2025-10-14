@@ -15,43 +15,47 @@
 package ovsnl
 
 import (
-	"net"
+	"sync"
+	"time"
+
+	"github.com/ti-mo/conntrack"
 )
 
-// ConntrackEntry represents a single connection tracking entry from the kernel.
-type ConntrackEntry struct {
-	Protocol   string // "tcp", "udp", "icmp" etc.
-	OrigSrc    net.IP
-	OrigDst    net.IP
-	OrigSPort  uint16
-	OrigDPort  uint16
-	ReplySrc   net.IP
-	ReplyDst   net.IP
-	ReplySPort uint16
-	ReplyDPort uint16
-	Zone       uint16
-	Mark       uint32
-	State      string
-}
+// Tunables - adjust for your environment
+const (
+	eventChanSize      = 512 * 1024
+	eventWorkerCount   = 100
+	destroyFlushIntvl  = 100 * time.Millisecond // flush aggregated DESTROYs every 100ms for minimal lag
+	destroyDeltaCap    = 200000                 // maximum distinct (zone,mark) entries in destroyDeltas
+	dropsWarnThreshold = 100                    // threshold of missedEvents to log a stronger warning
+)
 
-// ZoneStats holds statistics for a zone
-type ZoneStats struct {
-	TotalCount int
-	Entries    []ConntrackEntry // Only populated if TotalCount > threshold
-}
+// ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
+type ZoneMarkAggregator struct {
+	// primary counts (zmKey -> count) - simplified flat mapping
+	counts   map[ZmKey]int
+	countsMu sync.RWMutex
 
-// ConntrackPerformanceStats represents aggregated performance counters from all CPUs
-type ConntrackPerformanceStats struct {
-	TotalFound         uint32
-	TotalInvalid       uint32
-	TotalIgnore        uint32
-	TotalInsert        uint32
-	TotalInsertFailed  uint32
-	TotalDrop          uint32
-	TotalEarlyDrop     uint32
-	TotalError         uint32
-	TotalSearchRestart uint32
-	CPUs               int
+	// conntrack listening connection
+	listenCli *conntrack.Conn
+
+	// lifecycle
+	stopCh chan struct{}
+	wg     sync.WaitGroup
+
+	// bounded event ingestion
+	eventsCh chan conntrack.Event
+
+	// aggregated DESTROY deltas (bounded by destroyDeltaCap)
+	deltaMu       sync.Mutex
+	destroyDeltas map[ZmKey]int
+
+	// metrics / health
+	eventCount      int64
+	lastEventTime   time.Time
+	eventRate       float64
+	missedEvents    int64
+	lastHealthCheck time.Time
 }
 
 // ZmKey is a compact key for (zone,mark)
