@@ -40,7 +40,7 @@ func TestZoneMarkAggregator(t *testing.T) {
 	}
 
 	// Clean up
-	agg.Stop()
+	t.Cleanup(agg.Stop)
 }
 
 func TestZoneMarkAggregatorSnapshot(t *testing.T) {
@@ -76,7 +76,7 @@ func TestZoneMarkAggregatorSnapshot(t *testing.T) {
 	}
 
 	// Clean up
-	agg.Stop()
+	t.Cleanup(agg.Stop)
 }
 
 func TestZmKeyComparison(t *testing.T) {

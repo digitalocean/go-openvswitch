@@ -45,8 +45,8 @@ const (
 // ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
 	// primary counts (zmKey -> count) - simplified flat mapping
-	counts map[ZmKey]int
-	mu     sync.RWMutex
+	counts   map[ZmKey]int
+	countsMu sync.RWMutex
 
 	// conntrack listening connection
 	listenCli *conntrack.Conn
@@ -54,6 +54,7 @@ type ZoneMarkAggregator struct {
 	// lifecycle
 	stopCh    chan struct{}
 	stoppedCh chan struct{}
+	wg        sync.WaitGroup
 
 	// bounded event ingestion
 	eventsCh chan conntrack.Event
@@ -114,10 +115,14 @@ func (a *ZoneMarkAggregator) Start() error {
 	}
 
 	for i := 0; i < eventWorkerCount; i++ {
+		a.wg.Add(1)
 		go a.eventWorker(i)
 	}
 
+	a.wg.Add(1)
 	go a.destroyFlusher()
+
+	a.wg.Add(1)
 	go a.startHealthMonitoring()
 
 	go func() {
@@ -142,7 +147,9 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 		return fmt.Errorf("failed to listen to conntrack events: %w", err)
 	}
 
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		eventCount := int64(0)
 		rateWindow := make([]time.Time, 0, 100)
 
@@ -188,6 +195,7 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 
 // eventWorker consumes events from eventsCh and handles them
 func (a *ZoneMarkAggregator) eventWorker(id int) {
+	defer a.wg.Done()
 	processedCount := 0
 
 	for {
@@ -211,9 +219,9 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 	key := ZmKey{Zone: f.Zone, Mark: f.Mark}
 
 	if ev.Type == conntrack.EventNew {
-		a.mu.Lock()
+		a.countsMu.Lock()
 		a.counts[key]++
-		a.mu.Unlock()
+		a.countsMu.Unlock()
 		return
 	}
 
@@ -224,12 +232,12 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
 				deltas := a.destroyDeltas
 				a.destroyDeltas = make(map[ZmKey]int)
-				// Acquire mu while still holding deltaMu to maintain lock ordering
-				a.mu.Lock()
+				// Acquire countsMu while still holding deltaMu to maintain lock ordering
+				a.countsMu.Lock()
 				a.deltaMu.Unlock()
 				// Apply deltas immediately to minimize lag during extreme load
 				a.applyDeltasImmediatelyUnsafe(deltas)
-				a.mu.Unlock()
+				a.countsMu.Unlock()
 				return
 			}
 			// Log every 1000 DESTROY events to verify they're being received
@@ -248,7 +256,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 }
 
 // applyDeltasImmediatelyUnsafe applies deltas immediately to minimize lag during extreme load
-// This method assumes mu is already held by the caller
+// This method assumes countsMu is already held by the caller
 func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) {
 	totalDecrements := 0
 	for k, cnt := range deltas {
@@ -270,6 +278,7 @@ func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) 
 // destroyFlusher periodically applies the aggregated DESTROY deltas into counts
 // Uses adaptive flushing: more frequent during high event rates for minimal lag
 func (a *ZoneMarkAggregator) destroyFlusher() {
+	defer a.wg.Done()
 	ticker := time.NewTicker(destroyFlushIntvl)
 	defer ticker.Stop()
 
@@ -281,9 +290,9 @@ func (a *ZoneMarkAggregator) destroyFlusher() {
 			return
 		case <-ticker.C:
 			// Adaptive flushing: flush more frequently during high event rates
-			a.mu.RLock()
+			a.countsMu.RLock()
 			eventRate := a.eventRate
-			a.mu.RUnlock()
+			a.countsMu.RUnlock()
 
 			if eventRate > 500000 { // Very high event rate (>500K/sec)
 				// Flush immediately and reset ticker for faster interval
@@ -315,9 +324,9 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 	deltas := a.destroyDeltas
 	a.destroyDeltas = make(map[ZmKey]int)
 
-	// Now acquire mu while still holding deltaMu to ensure atomicity
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	// Now acquire countsMu while still holding deltaMu to ensure atomicity
+	a.countsMu.Lock()
+	defer a.countsMu.Unlock()
 
 	totalDecrements := 0
 	for k, cnt := range deltas {
@@ -339,8 +348,8 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 // Snapshot returns a safe copy of counts.
 func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
 	a.flushDestroyDeltas()
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+	a.countsMu.RLock()
+	defer a.countsMu.RUnlock()
 
 	out := make(map[ZmKey]int, len(a.counts))
 	for k, c := range a.counts {
@@ -353,6 +362,7 @@ func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
 
 // startHealthMonitoring periodically logs aggregator health
 func (a *ZoneMarkAggregator) startHealthMonitoring() {
+	defer a.wg.Done()
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -383,7 +393,7 @@ func (a *ZoneMarkAggregator) performHealthCheck() {
 // Stop cancels listening and closes the connection.
 func (a *ZoneMarkAggregator) Stop() {
 	close(a.stopCh)
-	time.Sleep(20 * time.Millisecond)
+	a.wg.Wait() // Wait for all goroutines to exit cleanly
 	if a.listenCli != nil {
 		if err := a.listenCli.Close(); err != nil {
 			log.Printf("Error closing listenCli during cleanup: %v", err)
