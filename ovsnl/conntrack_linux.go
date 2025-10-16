@@ -69,15 +69,13 @@ func (a *ZoneMarkAggregator) Start() error {
 	}
 
 	for i := 0; i < eventWorkerCount; i++ {
-		a.wg.Add(1)
-		go a.eventWorker(i)
+		workerID := i // Capture the loop variable
+		a.wg.Go(func() { a.eventWorker(workerID) })
 	}
 
-	a.wg.Add(1)
-	go a.destroyFlusher()
+	a.wg.Go(a.destroyFlusher)
 
-	a.wg.Add(1)
-	go a.startHealthMonitoring()
+	a.wg.Go(a.startHealthMonitoring)
 
 	return nil
 }
@@ -96,9 +94,7 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 		return fmt.Errorf("failed to listen to conntrack events: %w", err)
 	}
 
-	a.wg.Add(1)
-	go func() {
-		defer a.wg.Done()
+	a.wg.Go(func() {
 		eventCount := int64(0)
 		rateWindow := make([]time.Time, 0, 100)
 
@@ -137,20 +133,19 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 				}
 			}
 		}
-	}()
+	})
 
 	return nil
 }
 
 // eventWorker consumes events from eventsCh and handles them
-func (a *ZoneMarkAggregator) eventWorker(id int) {
-	defer a.wg.Done()
+func (a *ZoneMarkAggregator) eventWorker(workerID int) {
 	processedCount := 0
 
 	for {
 		select {
 		case <-a.stopCh:
-			log.Printf("Event worker %d stopping (processed %d events)", id, processedCount)
+			log.Printf("Event worker %d stopping (processed %d events)", workerID, processedCount)
 			return
 		case ev := <-a.eventsCh:
 			a.handleEvent(ev)
@@ -223,7 +218,6 @@ func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) 
 // destroyFlusher periodically applies the aggregated DESTROY deltas into counts
 // Uses adaptive flushing: more frequent during high event rates for minimal lag
 func (a *ZoneMarkAggregator) destroyFlusher() {
-	defer a.wg.Done()
 	ticker := time.NewTicker(destroyFlushIntvl)
 	defer ticker.Stop()
 
@@ -307,7 +301,6 @@ func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
 
 // startHealthMonitoring periodically logs aggregator health
 func (a *ZoneMarkAggregator) startHealthMonitoring() {
-	defer a.wg.Done()
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
