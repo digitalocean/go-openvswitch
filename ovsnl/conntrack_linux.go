@@ -169,13 +169,14 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 
 	if ev.Type == conntrack.EventNew {
 		a.countsMu.Lock()
+		defer a.countsMu.Unlock()
 		a.counts[key]++
-		a.countsMu.Unlock()
 		return
 	}
 
 	if ev.Type == conntrack.EventDestroy {
 		a.deltaMu.Lock()
+		defer a.deltaMu.Unlock()
 		if len(a.destroyDeltas) < destroyDeltaCap {
 			a.destroyDeltas[key]++
 			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
@@ -183,10 +184,9 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 				a.destroyDeltas = make(map[ZmKey]int)
 				// Acquire countsMu while still holding deltaMu to maintain lock ordering
 				a.countsMu.Lock()
-				a.deltaMu.Unlock()
+				defer a.countsMu.Unlock()
 				// Apply deltas immediately to minimize lag during extreme load
 				a.applyDeltasImmediatelyUnsafe(deltas)
-				a.countsMu.Unlock()
 				return
 			}
 			// Log every 1000 DESTROY events to verify they're being received
@@ -199,7 +199,6 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 				log.Printf("Warning: destroyDeltas saturated (size=%d). missedEvents=%d", len(a.destroyDeltas), atomic.LoadInt64(&a.missedEvents))
 			}
 		}
-		a.deltaMu.Unlock()
 		return
 	}
 }
