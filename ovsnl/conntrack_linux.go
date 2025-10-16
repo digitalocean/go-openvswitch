@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"runtime"
-	"sync/atomic"
 	"time"
 
 	"github.com/ti-mo/conntrack"
@@ -101,18 +100,18 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 		for {
 			select {
 			case <-a.stopCh:
-				log.Printf("Stopping lib->bounded relay after %d lib events", atomic.LoadInt64(&eventCount))
+				log.Printf("Stopping lib->bounded relay after %d lib events", eventCount)
 				return
 			case e := <-errCh:
 				if e != nil {
 					log.Printf("conntrack listener error: %v", e)
-					atomic.AddInt64(&a.missedEvents, 1)
+					a.missedEvents.Add(1)
 				}
 			case ev := <-libEvents:
 				select {
 				case a.eventsCh <- ev:
-					atomic.AddInt64(&eventCount, 1)
-					atomic.StoreInt64(&a.eventCount, eventCount)
+					eventCount++
+					a.eventCount.Store(eventCount)
 					a.lastEventTime = time.Now()
 
 					rateWindow = append(rateWindow, a.lastEventTime)
@@ -126,9 +125,9 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 						}
 					}
 				default:
-					atomic.AddInt64(&a.missedEvents, 1)
-					if atomic.LoadInt64(&a.missedEvents)%100 == 0 {
-						log.Printf("Warning: eventsCh full, missedEvents=%d", atomic.LoadInt64(&a.missedEvents))
+					a.missedEvents.Add(1)
+					if a.missedEvents.Load()%100 == 0 {
+						log.Printf("Warning: eventsCh full, missedEvents=%d", a.missedEvents.Load())
 					}
 				}
 			}
@@ -150,7 +149,7 @@ func (a *ZoneMarkAggregator) eventWorker(workerID int) {
 		case ev := <-a.eventsCh:
 			a.handleEvent(ev)
 			processedCount++
-			if atomic.LoadInt64(&a.eventCount)%100 == 0 {
+			if a.eventCount.Load()%100 == 0 {
 				runtime.Gosched()
 			}
 		}
@@ -189,9 +188,9 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 				log.Printf("DESTROY events: %d entries in destroyDeltas (zone=%d, mark=%d)", len(a.destroyDeltas), key.Zone, key.Mark)
 			}
 		} else {
-			atomic.AddInt64(&a.missedEvents, 1)
-			if atomic.LoadInt64(&a.missedEvents)%dropsWarnThreshold == 0 {
-				log.Printf("Warning: destroyDeltas saturated (size=%d). missedEvents=%d", len(a.destroyDeltas), atomic.LoadInt64(&a.missedEvents))
+			a.missedEvents.Add(1)
+			if a.missedEvents.Load()%dropsWarnThreshold == 0 {
+				log.Printf("Warning: destroyDeltas saturated (size=%d). missedEvents=%d", len(a.destroyDeltas), a.missedEvents.Load())
 			}
 		}
 		return
@@ -204,7 +203,7 @@ func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) 
 	for k, cnt := range deltas {
 		existing, ok := a.counts[k]
 		if !ok {
-			atomic.AddInt64(&a.missedEvents, int64(cnt))
+			a.missedEvents.Add(int64(cnt))
 			continue
 		}
 		if existing <= cnt {
@@ -271,7 +270,7 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 	for k, cnt := range deltas {
 		existing, ok := a.counts[k]
 		if !ok {
-			atomic.AddInt64(&a.missedEvents, int64(cnt))
+			a.missedEvents.Add(int64(cnt))
 			continue
 		}
 		if existing <= cnt {
@@ -315,13 +314,13 @@ func (a *ZoneMarkAggregator) startHealthMonitoring() {
 }
 
 func (a *ZoneMarkAggregator) performHealthCheck() {
-	missed := atomic.LoadInt64(&a.missedEvents)
+	missed := a.missedEvents.Load()
 
 	if missed > dropsWarnThreshold {
 		if err := a.RestartListener(); err != nil {
 			log.Printf("Health check: RestartListener failed: %v", err)
 		} else {
-			atomic.StoreInt64(&a.missedEvents, 0)
+			a.missedEvents.Store(0)
 			log.Printf("Health check: Listener restarted successfully")
 		}
 	}

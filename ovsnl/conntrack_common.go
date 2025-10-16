@@ -16,6 +16,7 @@ package ovsnl
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ti-mo/conntrack"
@@ -33,8 +34,9 @@ const (
 // ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
 	// primary counts (zmKey -> count) - simplified flat mapping
-	counts   map[ZmKey]int
-	countsMu sync.RWMutex
+	counts    map[ZmKey]int
+	countsMu  sync.RWMutex
+	eventRate float64
 
 	// conntrack listening connection
 	listenCli *conntrack.Conn
@@ -51,10 +53,9 @@ type ZoneMarkAggregator struct {
 	destroyDeltas map[ZmKey]int
 
 	// metrics / health
-	eventCount      int64
+	eventCount      atomic.Int64
 	lastEventTime   time.Time
-	eventRate       float64
-	missedEvents    int64
+	missedEvents    atomic.Int64
 	lastHealthCheck time.Time
 }
 
