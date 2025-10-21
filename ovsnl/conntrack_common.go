@@ -34,8 +34,8 @@ const (
 // ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
 	// primary counts (zmKey -> count) - simplified flat mapping
-	counts    map[ZmKey]int
 	countsMu  sync.RWMutex
+	counts    map[ZmKey]int
 	eventRate float64
 
 	// conntrack listening connection
