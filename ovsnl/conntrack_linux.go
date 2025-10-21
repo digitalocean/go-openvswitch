@@ -19,7 +19,8 @@ package ovsnl
 import (
 	"fmt"
 	"log"
-	"runtime"
+
+	// "runtime"
 	"time"
 
 	"github.com/ti-mo/conntrack"
@@ -48,11 +49,11 @@ func NewZoneMarkAggregator() (*ZoneMarkAggregator, error) {
 	}
 
 	a := &ZoneMarkAggregator{
-		counts:          make(map[ZmKey]int),
+		counts:          make(map[ZoneMarkKey]int),
 		listenCli:       listenCli,
 		stopCh:          make(chan struct{}),
 		eventsCh:        make(chan conntrack.Event, eventChanSize),
-		destroyDeltas:   make(map[ZmKey]int),
+		destroyDeltas:   make(map[ZoneMarkKey]int),
 		lastEventTime:   time.Now(),
 		lastHealthCheck: time.Now(),
 	}
@@ -68,8 +69,7 @@ func (a *ZoneMarkAggregator) Start() error {
 	}
 
 	for i := 0; i < eventWorkerCount; i++ {
-		workerID := i // Capture the loop variable
-		a.wg.Go(func() { a.eventWorker(workerID) })
+		a.wg.Go(func() { a.eventWorker(i) })
 	}
 
 	a.wg.Go(a.destroyFlusher)
@@ -139,19 +139,19 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 
 // eventWorker consumes events from eventsCh and handles them
 func (a *ZoneMarkAggregator) eventWorker(workerID int) {
-	processedCount := 0
+	// processedCount := 0
 
 	for {
 		select {
 		case <-a.stopCh:
-			log.Printf("Event worker %d stopping (processed %d events)", workerID, processedCount)
+			// log.Printf("Event worker %d stopping (processed %d events)", workerID, processedCount)
 			return
 		case ev := <-a.eventsCh:
 			a.handleEvent(ev)
-			processedCount++
-			if a.eventCount.Load()%100 == 0 {
-				runtime.Gosched()
-			}
+			// processedCount++
+			// if a.eventCount.Load()%100 == 0 {
+			// 	runtime.Gosched()
+			// }
 		}
 	}
 }
@@ -159,7 +159,7 @@ func (a *ZoneMarkAggregator) eventWorker(workerID int) {
 // handleEvent processes a single event.
 func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 	f := ev.Flow
-	key := ZmKey{Zone: f.Zone, Mark: f.Mark}
+	key := ZoneMarkKey{Zone: f.Zone, Mark: f.Mark}
 
 	if ev.Type == conntrack.EventNew {
 		a.countsMu.Lock()
@@ -175,7 +175,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 			a.destroyDeltas[key]++
 			if len(a.destroyDeltas) > 50000 { // If we have >50K deltas, flush immediately
 				deltas := a.destroyDeltas
-				a.destroyDeltas = make(map[ZmKey]int)
+				a.destroyDeltas = make(map[ZoneMarkKey]int)
 				// Acquire countsMu while still holding deltaMu to maintain lock ordering
 				a.countsMu.Lock()
 				defer a.countsMu.Unlock()
@@ -199,7 +199,7 @@ func (a *ZoneMarkAggregator) handleEvent(ev conntrack.Event) {
 
 // applyDeltasImmediatelyUnsafe applies deltas immediately to minimize lag during extreme load
 // This method assumes countsMu is already held by the caller
-func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZmKey]int) {
+func (a *ZoneMarkAggregator) applyDeltasImmediatelyUnsafe(deltas map[ZoneMarkKey]int) {
 	for k, cnt := range deltas {
 		existing, ok := a.counts[k]
 		if !ok {
@@ -260,7 +260,7 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 		return
 	}
 	deltas := a.destroyDeltas
-	a.destroyDeltas = make(map[ZmKey]int)
+	a.destroyDeltas = make(map[ZoneMarkKey]int)
 
 	// Now acquire countsMu while still holding deltaMu to ensure atomicity
 	a.countsMu.Lock()
@@ -284,12 +284,12 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 }
 
 // Snapshot returns a safe copy of counts.
-func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
+func (a *ZoneMarkAggregator) Snapshot() map[ZoneMarkKey]int {
 	a.flushDestroyDeltas()
 	a.countsMu.RLock()
 	defer a.countsMu.RUnlock()
 
-	out := make(map[ZmKey]int, len(a.counts))
+	out := make(map[ZoneMarkKey]int, len(a.counts))
 	for k, c := range a.counts {
 		if c > 0 {
 			out[k] = c
@@ -341,13 +341,25 @@ func (a *ZoneMarkAggregator) Stop() {
 
 // RestartListener attempts to restart the conntrack event listener
 func (a *ZoneMarkAggregator) RestartListener() error {
+	a.listenerMu.Lock()
+	defer a.listenerMu.Unlock()
+
+	// Close the old connection to signal the existing listener to stop
 	if a.listenCli != nil {
-		_ = a.listenCli.Close()
+		if err := a.listenCli.Close(); err != nil {
+			log.Printf("Warning: Error closing old listener connection: %v", err)
+		}
 	}
+
+	a.wg.Wait()
+
+	// Create new connection
 	listenCli, err := conntrack.Dial(nil)
 	if err != nil {
 		return fmt.Errorf("failed to create new listening connection: %w", err)
 	}
 	a.listenCli = listenCli
+
+	// Start new listener
 	return a.startEventListener()
 }

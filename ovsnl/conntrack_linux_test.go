@@ -56,13 +56,13 @@ func TestZoneMarkAggregatorSnapshot(t *testing.T) {
 		t.Fatal("NewZoneMarkAggregator() returned nil aggregator")
 	}
 
-	// Test snapshot functionality with new zmKey-based mapping
+	// Test snapshot functionality with new ZoneMarkKey-based mapping
 	snapshot := agg.Snapshot()
 	if snapshot == nil {
 		t.Fatal("Snapshot() returned nil")
 	}
 
-	// Verify snapshot is a map[ZmKey]int
+	// Verify snapshot is a map[ZoneMarkKey]int
 	if len(snapshot) == 0 {
 		t.Log("Snapshot is empty (expected in test environment)")
 	}
@@ -79,38 +79,38 @@ func TestZoneMarkAggregatorSnapshot(t *testing.T) {
 	t.Cleanup(agg.Stop)
 }
 
-func TestZmKeyComparison(t *testing.T) {
-	// Test that ZmKey works correctly as a map key
-	key1 := ZmKey{Zone: 1, Mark: 100}
-	key2 := ZmKey{Zone: 1, Mark: 100}
-	key3 := ZmKey{Zone: 2, Mark: 100}
-	key4 := ZmKey{Zone: 1, Mark: 200}
+func TestZMKeyComparison(t *testing.T) {
+	// Test that ZoneMarkKey works correctly as a map key
+	key1 := ZoneMarkKey{Zone: 1, Mark: 100}
+	key2 := ZoneMarkKey{Zone: 1, Mark: 100}
+	key3 := ZoneMarkKey{Zone: 2, Mark: 100}
+	key4 := ZoneMarkKey{Zone: 1, Mark: 200}
 
 	// Test equality
 	if key1 != key2 {
-		t.Error("Identical ZmKey structs should be equal")
+		t.Error("Identical ZoneMarkKey structs should be equal")
 	}
 
 	// Test inequality
 	if key1 == key3 {
-		t.Error("Different zone ZmKey structs should not be equal")
+		t.Error("Different zone ZoneMarkKey structs should not be equal")
 	}
 	if key1 == key4 {
-		t.Error("Different mark ZmKey structs should not be equal")
+		t.Error("Different mark ZoneMarkKey structs should not be equal")
 	}
 
 	// Test as map keys
-	testMap := make(map[ZmKey]int)
+	testMap := make(map[ZoneMarkKey]int)
 	testMap[key1] = 5
 	testMap[key3] = 10
 
 	if testMap[key1] != 5 {
-		t.Error("ZmKey should work as map key")
+		t.Error("ZoneMarkKey should work as map key")
 	}
 	if testMap[key2] != 5 {
-		t.Error("Equal ZmKey structs should map to same value")
+		t.Error("Equal ZoneMarkKey structs should map to same value")
 	}
 	if testMap[key3] != 10 {
-		t.Error("Different ZmKey should map to different value")
+		t.Error("Different ZoneMarkKey should map to different value")
 	}
 }

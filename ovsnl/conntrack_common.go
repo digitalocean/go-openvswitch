@@ -34,12 +34,13 @@ const (
 // ZoneMarkAggregator keeps live counts (zmKey -> count) with bounded ingestion
 type ZoneMarkAggregator struct {
 	// primary counts (zmKey -> count) - simplified flat mapping
+	counts    map[ZoneMarkKey]int
 	countsMu  sync.RWMutex
-	counts    map[ZmKey]int
 	eventRate float64
 
 	// conntrack listening connection
-	listenCli *conntrack.Conn
+	listenCli  *conntrack.Conn
+	listenerMu sync.Mutex // Protects listener restart operations
 
 	// lifecycle
 	stopCh chan struct{}
@@ -50,7 +51,7 @@ type ZoneMarkAggregator struct {
 
 	// aggregated DESTROY deltas (bounded by destroyDeltaCap)
 	deltaMu       sync.Mutex
-	destroyDeltas map[ZmKey]int
+	destroyDeltas map[ZoneMarkKey]int
 
 	// metrics / health
 	eventCount      atomic.Int64
@@ -59,8 +60,8 @@ type ZoneMarkAggregator struct {
 	lastHealthCheck time.Time
 }
 
-// ZmKey is a compact key for (zone,mark)
-type ZmKey struct {
+// ZoneMarkKey is a compact key for (zone,mark)
+type ZoneMarkKey struct {
 	Zone uint16
 	Mark uint32
 }

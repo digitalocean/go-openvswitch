@@ -39,6 +39,6 @@ func (a *ZoneMarkAggregator) Stop() {
 
 // Snapshot returns a safe copy of counts.
 // On non-Linux platforms, this returns an empty map.
-func (a *ZoneMarkAggregator) Snapshot() map[ZmKey]int {
-	return make(map[ZmKey]int)
+func (a *ZoneMarkAggregator) Snapshot() map[ZoneMarkKey]int {
+	return make(map[ZoneMarkKey]int)
 }
