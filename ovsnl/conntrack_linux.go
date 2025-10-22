@@ -19,8 +19,6 @@ package ovsnl
 import (
 	"fmt"
 	"log"
-
-	// "runtime"
 	"time"
 
 	"github.com/ti-mo/conntrack"
@@ -69,7 +67,7 @@ func (a *ZoneMarkAggregator) Start() error {
 	}
 
 	for i := 0; i < eventWorkerCount; i++ {
-		a.wg.Go(func() { a.eventWorker(i) })
+		a.wg.Go(a.eventWorker)
 	}
 
 	a.wg.Go(a.destroyFlusher)
@@ -138,17 +136,14 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 }
 
 // eventWorker consumes events from eventsCh and handles them
-func (a *ZoneMarkAggregator) eventWorker( {
+func (a *ZoneMarkAggregator) eventWorker() {
+
 	for {
 		select {
 		case <-a.stopCh:
 			return
 		case ev := <-a.eventsCh:
 			a.handleEvent(ev)
-			// processedCount++
-			// if a.eventCount.Load()%100 == 0 {
-			// 	runtime.Gosched()
-			// }
 		}
 	}
 }
@@ -263,7 +258,6 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 	a.countsMu.Lock()
 	defer a.countsMu.Unlock()
 
-	totalDecrements := 0
 	for k, cnt := range deltas {
 		existing, ok := a.counts[k]
 		if !ok {
@@ -272,10 +266,8 @@ func (a *ZoneMarkAggregator) flushDestroyDeltas() {
 		}
 		if existing <= cnt {
 			delete(a.counts, k)
-			totalDecrements += existing
 		} else {
 			a.counts[k] = existing - cnt
-			totalDecrements += cnt
 		}
 	}
 }
