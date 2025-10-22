@@ -138,13 +138,10 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 }
 
 // eventWorker consumes events from eventsCh and handles them
-func (a *ZoneMarkAggregator) eventWorker(workerID int) {
-	// processedCount := 0
-
+func (a *ZoneMarkAggregator) eventWorker( {
 	for {
 		select {
 		case <-a.stopCh:
-			// log.Printf("Event worker %d stopping (processed %d events)", workerID, processedCount)
 			return
 		case ev := <-a.eventsCh:
 			a.handleEvent(ev)
