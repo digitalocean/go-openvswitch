@@ -289,7 +289,7 @@ func (a *ZoneMarkAggregator) Snapshot() map[ZoneMarkKey]int {
 
 // startHealthMonitoring periodically logs aggregator health
 func (a *ZoneMarkAggregator) startHealthMonitoring() {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -333,14 +333,21 @@ func (a *ZoneMarkAggregator) RestartListener() error {
 	a.listenerMu.Lock()
 	defer a.listenerMu.Unlock()
 
-	// Close the old connection to signal the existing listener to stop
+	// Signal all goroutines to stop by closing stopCh
+	close(a.stopCh)
+
+	// Close the old connection to help goroutines exit faster
 	if a.listenCli != nil {
 		if err := a.listenCli.Close(); err != nil {
 			log.Printf("Warning: Error closing old listener connection: %v", err)
 		}
 	}
 
+	// Wait for all goroutines to exit cleanly
 	a.wg.Wait()
+
+	// Create a new stopCh for the restarted goroutines
+	a.stopCh = make(chan struct{})
 
 	// Create new connection
 	listenCli, err := conntrack.Dial(nil)
@@ -349,6 +356,6 @@ func (a *ZoneMarkAggregator) RestartListener() error {
 	}
 	a.listenCli = listenCli
 
-	// Start new listener
+	// Start new listener with fresh goroutines
 	return a.startEventListener()
 }
