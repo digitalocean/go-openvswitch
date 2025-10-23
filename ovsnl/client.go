@@ -37,8 +37,7 @@ type Client struct {
 	// Datapath provides access to DatapathService methods.
 	Datapath *DatapathService
 
-	c   *genetlink.Conn
-	Agg *ZoneMarkAggregator // lazily initialized
+	c *genetlink.Conn
 }
 
 // New creates a new Linux Open vSwitch generic netlink client.
@@ -72,9 +71,6 @@ func New() (*Client, error) {
 
 // Close closes the Client's generic netlink connection.
 func (c *Client) Close() error {
-	if c.Agg != nil {
-		c.Agg.Stop()
-	}
 
 	if c.c != nil {
 		return c.c.Close()
