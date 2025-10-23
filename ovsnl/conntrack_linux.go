@@ -137,7 +137,6 @@ func (a *ZoneMarkAggregator) startEventListener() error {
 
 // eventWorker consumes events from eventsCh and handles them
 func (a *ZoneMarkAggregator) eventWorker() {
-
 	for {
 		select {
 		case <-a.stopCh:
