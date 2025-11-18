@@ -21,6 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -67,6 +70,80 @@ type FlowTransaction struct {
 type flowDirective struct {
 	directive string
 	flow      string
+}
+
+// PortAttr contains the ofport number and MAC address for an interface.
+type PortAttr struct {
+	// ofPort specifies the OpenFlow port number.
+	ofPort int
+
+	// macAddress specifies the MAC address of the interface.
+	macAddress string
+}
+
+// PortMapping contains the interface name, ofport number and MAC address for an interface.
+type PortMapping struct {
+	portAttr PortAttr
+	ifName   string
+}
+
+// UnmarshalText unmarshals a PortMapping from textual form as output by
+// 'ovs-ofctl show':
+//
+//	7(interface1): addr:fe:4f:76:09:88:2b
+func (p *PortMapping) UnmarshalText(b []byte) error {
+	// Make a copy per documentation for encoding.TextUnmarshaler.
+	s := strings.TrimSpace(string(b))
+
+	// Expected format: " 7(interface1): addr:fe:4f:76:09:88:2b"
+	// Find the opening parenthesis
+	openParen := strings.IndexByte(s, '(')
+	if openParen == -1 {
+		return fmt.Errorf("invalid port mapping format")
+	}
+
+	// Find the closing parenthesis in the full string
+	closeParen := strings.IndexByte(s, ')')
+	if closeParen == -1 || closeParen <= openParen {
+		return fmt.Errorf("invalid port mapping format")
+	}
+
+	// Extract interface name (between parentheses)
+	ifName := s[openParen+1 : closeParen]
+
+	// Extract ofport number (before opening parenthesis)
+	ofportStr := strings.TrimSpace(s[:openParen])
+	ofport, err := strconv.Atoi(ofportStr)
+	if err != nil {
+		return fmt.Errorf("invalid ofport number: %w", err)
+	}
+
+	// Validate ofport is in valid OpenFlow port range [0, 65535]
+	if ofport < 0 || ofport > 65535 {
+		return fmt.Errorf("ofport %d out of valid range [0, 65535]", ofport)
+	}
+
+	// Find "addr:" after the closing parenthesis in the full string
+	addrPrefix := ": addr:"
+	addrIdx := strings.Index(s, addrPrefix)
+	if addrIdx == -1 || addrIdx <= closeParen {
+		return fmt.Errorf("invalid port mapping format")
+	}
+	addrIdx += len(addrPrefix)
+
+	// Extract MAC address (after "addr:")
+	macAddress := strings.TrimSpace(s[addrIdx:])
+
+	// Validate MAC address format
+	if _, err := net.ParseMAC(macAddress); err != nil {
+		return fmt.Errorf("invalid MAC address %q: %w", macAddress, err)
+	}
+
+	p.portAttr.ofPort = ofport
+	p.portAttr.macAddress = macAddress
+	p.ifName = ifName
+
+	return nil
 }
 
 // Possible flowDirective directive values.
@@ -324,6 +401,57 @@ func (o *OpenFlowService) DumpAggregate(bridge string, flow *MatchFlow) (*FlowSt
 	return stats, nil
 }
 
+// DumpPortMapping retrieves port mapping (ofport and MAC address) for a
+// specific interface from the specified bridge.
+func (o *OpenFlowService) DumpPortMapping(bridge string, interfaceName string) (*PortAttr, error) {
+	mappings, err := o.DumpPortMappings(bridge)
+	if err != nil {
+		return nil, err
+	}
+
+	mapping, ok := mappings[interfaceName]
+	if !ok {
+		return nil, fmt.Errorf("interface %q not found", interfaceName)
+	}
+
+	return mapping, nil
+}
+
+// DumpPortMappings retrieves port mappings (ofport and MAC address) for all
+// interfaces from the specified bridge. The output is parsed from 'ovs-ofctl show' command.
+func (o *OpenFlowService) DumpPortMappings(bridge string) (map[string]*PortAttr, error) {
+	args := []string{"show", bridge}
+	args = append(args, o.c.ofctlFlags...)
+
+	out, err := o.exec(args...)
+	if err != nil {
+		return nil, err
+	}
+
+	mappings := make(map[string]*PortAttr)
+	err = parseEachPort(out, showPrefix, func(line []byte) error {
+		// Parse the PortMapping - UnmarshalText validates format and extracts all fields
+		pm := new(PortMapping)
+		if err := pm.UnmarshalText(line); err != nil {
+			// Skip malformed lines
+			return nil
+		}
+
+		// Use interface name from PortMapping as map key, copy PortAttr values
+		mappings[pm.ifName] = &PortAttr{
+			ofPort:     pm.portAttr.ofPort,
+			macAddress: pm.portAttr.macAddress,
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse port mappings: %w", err)
+	}
+
+	return mappings, nil
+}
+
 var (
 	// dumpPortsPrefix is a sentinel value returned at the beginning of
 	// the output from 'ovs-ofctl dump-ports'.
@@ -343,6 +471,10 @@ var (
 	// dumpAggregatePrefix is a sentinel value returned at the beginning of
 	// the output from "ovs-ofctl dump-aggregate"
 	//dumpAggregatePrefix = []byte("NXST_AGGREGATE reply")
+
+	// showPrefix is a sentinel value returned at the beginning of
+	// the output from 'ovs-ofctl show'.
+	showPrefix = []byte("OFPT_FEATURES_REPLY")
 )
 
 // dumpPorts calls 'ovs-ofctl dump-ports' with the specified arguments and
@@ -489,6 +621,39 @@ func parseEach(in []byte, prefix []byte, fn func(b []byte) error) error {
 			}
 		}
 
+		if err := fn(b); err != nil {
+			return err
+		}
+	}
+
+	return scanner.Err()
+}
+
+// parseEachPort parses ovs-ofctl show output from the input buffer, ensuring it has the
+// specified prefix, and invoking the input function on each line scanned.
+func parseEachPort(in []byte, prefix []byte, fn func(b []byte) error) error {
+	// Handle empty input - return nil to allow empty mappings (matches test expectations)
+	if len(in) == 0 {
+		return nil
+	}
+
+	// First line must not be empty
+	scanner := bufio.NewScanner(bytes.NewReader(in))
+	scanner.Split(bufio.ScanLines)
+	if !scanner.Scan() {
+		return io.ErrUnexpectedEOF
+	}
+
+	// First line must contain the prefix returned by OVS
+	if !bytes.Contains(scanner.Bytes(), prefix) {
+		return io.ErrUnexpectedEOF
+	}
+
+	// Scan every line to retrieve information needed to unmarshal
+	// a single PortMapping struct.
+	for scanner.Scan() {
+		b := make([]byte, len(scanner.Bytes()))
+		copy(b, scanner.Bytes())
 		if err := fn(b); err != nil {
 			return err
 		}

@@ -1415,3 +1415,361 @@ func mustVerifyFlowBundle(t *testing.T, stdin io.Reader, flows []*Flow, matchFlo
 		}
 	}
 }
+
+func TestClientOpenFlowDumpPortMappingsOK(t *testing.T) {
+	want := map[string]*PortAttr{
+		"interface1": {
+			ofPort:     7,
+			macAddress: "fe:4f:76:09:88:2b",
+		},
+		"interface2": {
+			ofPort:     8,
+			macAddress: "fe:be:7b:0d:53:d8",
+		},
+		"interface3": {
+			ofPort:     9,
+			macAddress: "fe:b6:4c:d5:40:79",
+		},
+		"interface4": {
+			ofPort:     20,
+			macAddress: "fe:cf:a6:90:30:29",
+		},
+		"LOCAL": {
+			ofPort:     65534,
+			macAddress: "fe:74:0f:80:cf:9a",
+		},
+		"eth0": {
+			ofPort:     1,
+			macAddress: "aa:bb:cc:dd:ee:ff",
+		},
+	}
+
+	bridge := "br0"
+
+	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+		// Verify correct command and arguments passed, including option flags
+		if want, got := "ovs-ofctl", cmd; want != got {
+			t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		wantArgs := []string{"--timeout=1", "show", bridge}
+		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		return []byte(`
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+n_tables:254, n_buffers:256
+capabilities: FLOW_STATS TABLE_STATS PORT_STATS QUEUE_STATS ARP_MATCH_IP
+actions: output enqueue set_vlan_vid set_vlan_pcp strip_vlan mod_dl_src mod_dl_dst mod_nw_src mod_nw_dst mod_nw_tos mod_tp_src mod_tp_dst
+ 7(interface1): addr:fe:4f:76:09:88:2b
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ 8(interface2): addr:fe:be:7b:0d:53:d8
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ 9(interface3): addr:fe:b6:4c:d5:40:79
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ 20(interface4): addr:fe:cf:a6:90:30:29
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ 65534(LOCAL): addr:fe:74:0f:80:cf:9a
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ 1(eth0): addr:aa:bb:cc:dd:ee:ff
+     config:     0
+     state:      0
+`), nil
+	})
+
+	got, err := c.OpenFlow.DumpPortMappings(bridge)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(want) != len(got) {
+		t.Fatalf("unexpected number of mappings:\n- want: %d\n-  got: %d",
+			len(want), len(got))
+	}
+
+	for name, wantMapping := range want {
+		gotMapping, ok := got[name]
+		if !ok {
+			t.Fatalf("missing mapping for interface %q", name)
+		}
+
+		if wantMapping.ofPort != gotMapping.ofPort {
+			t.Fatalf("unexpected ofPort for %q:\n- want: %d\n-  got: %d",
+				name, wantMapping.ofPort, gotMapping.ofPort)
+		}
+
+		if wantMapping.macAddress != gotMapping.macAddress {
+			t.Fatalf("unexpected macAddress for %q:\n- want: %q\n-  got: %q",
+				name, wantMapping.macAddress, gotMapping.macAddress)
+		}
+	}
+}
+
+func TestClientOpenFlowDumpPortMappingsEmptyOutput(t *testing.T) {
+	bridge := "br0"
+
+	c := testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+		return []byte(""), nil
+	})
+
+	got, err := c.OpenFlow.DumpPortMappings(bridge)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Fatalf("unexpected mappings for empty output:\n- want: 0\n-  got: %d", len(got))
+	}
+}
+
+func TestClientOpenFlowDumpPortMappingsAllInterfaces(t *testing.T) {
+	want := map[string]*PortAttr{
+		"eth0": {
+			ofPort:     1,
+			macAddress: "aa:bb:cc:dd:ee:ff",
+		},
+		"eth1": {
+			ofPort:     2,
+			macAddress: "11:22:33:44:55:66",
+		},
+	}
+
+	bridge := "br0"
+
+	c := testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+		return []byte(`
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+ 1(eth0): addr:aa:bb:cc:dd:ee:ff
+ 2(eth1): addr:11:22:33:44:55:66
+`), nil
+	})
+
+	got, err := c.OpenFlow.DumpPortMappings(bridge)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(want) != len(got) {
+		t.Fatalf("unexpected number of mappings:\n- want: %d\n-  got: %d", len(want), len(got))
+	}
+
+	for name, wantMapping := range want {
+		gotMapping, ok := got[name]
+		if !ok {
+			t.Fatalf("missing mapping for interface %q", name)
+		}
+
+		if wantMapping.ofPort != gotMapping.ofPort {
+			t.Fatalf("unexpected ofPort for %q:\n- want: %d\n-  got: %d",
+				name, wantMapping.ofPort, gotMapping.ofPort)
+		}
+
+		if wantMapping.macAddress != gotMapping.macAddress {
+			t.Fatalf("unexpected macAddress for %q:\n- want: %q\n-  got: %q",
+				name, wantMapping.macAddress, gotMapping.macAddress)
+		}
+	}
+}
+
+func TestClientOpenFlowDumpPortMappingsForInterface(t *testing.T) {
+	tests := []struct {
+		name          string
+		interfaceName string
+		want          *PortAttr
+		output        string
+	}{
+		{
+			name:          "LOCAL interface",
+			interfaceName: "LOCAL",
+			want: &PortAttr{
+				ofPort:     65534,
+				macAddress: "fe:74:0f:80:cf:9a",
+			},
+			output: `
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+ 65534(LOCAL): addr:fe:74:0f:80:cf:9a
+`,
+		},
+		{
+			name:          "interface1",
+			interfaceName: "interface1",
+			want: &PortAttr{
+				ofPort:     7,
+				macAddress: "fe:4f:76:09:88:2b",
+			},
+			output: `
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+ 7(interface1): addr:fe:4f:76:09:88:2b
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bridge := "br0"
+
+			c := testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+				return []byte(tt.output), nil
+			})
+
+			got, err := c.OpenFlow.DumpPortMappings(bridge)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			gotMapping, ok := got[tt.interfaceName]
+			if !ok {
+				t.Fatalf("missing mapping for interface %q", tt.interfaceName)
+			}
+
+			if tt.want.ofPort != gotMapping.ofPort {
+				t.Fatalf("unexpected ofPort for %q:\n- want: %d\n-  got: %d",
+					tt.interfaceName, tt.want.ofPort, gotMapping.ofPort)
+			}
+
+			if tt.want.macAddress != gotMapping.macAddress {
+				t.Fatalf("unexpected macAddress for %q:\n- want: %q\n-  got: %q",
+					tt.interfaceName, tt.want.macAddress, gotMapping.macAddress)
+			}
+		})
+	}
+}
+
+func TestClientOpenFlowDumpPortMappingsCommandError(t *testing.T) {
+	bridge := "br0"
+	wantErr := errors.New("command failed")
+
+	c := testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+		return nil, wantErr
+	})
+
+	_, err := c.OpenFlow.DumpPortMappings(bridge)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), wantErr.Error()) {
+		t.Fatalf("unexpected error:\n- want: contains %q\n-  got: %v", wantErr.Error(), err)
+	}
+}
+
+func TestClientOpenFlowDumpPortMapping(t *testing.T) {
+	tests := []struct {
+		name          string
+		interfaceName string
+		want          *PortAttr
+		output        string
+		wantErr       bool
+		errMsg        string
+	}{
+		{
+			name:          "successful retrieval",
+			interfaceName: "interface1",
+			want: &PortAttr{
+				ofPort:     7,
+				macAddress: "fe:4f:76:09:88:2b",
+			},
+			output: `
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+ 7(interface1): addr:fe:4f:76:09:88:2b
+ 8(interface2): addr:fe:be:7b:0d:53:d8
+`,
+			wantErr: false,
+		},
+		{
+			name:          "interface not found",
+			interfaceName: "nonexistent",
+			output: `
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+ 7(interface1): addr:fe:4f:76:09:88:2b
+`,
+			wantErr: true,
+			errMsg:  "interface \"nonexistent\" not found",
+		},
+		{
+			name:          "LOCAL interface",
+			interfaceName: "LOCAL",
+			want: &PortAttr{
+				ofPort:     65534,
+				macAddress: "fe:74:0f:80:cf:9a",
+			},
+			output: `
+OFPT_FEATURES_REPLY (xid=0x2): dpid:0000000000000001
+ 65534(LOCAL): addr:fe:74:0f:80:cf:9a
+`,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bridge := "br0"
+
+			c := testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+				return []byte(tt.output), nil
+			})
+
+			got, err := c.OpenFlow.DumpPortMapping(bridge, tt.interfaceName)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					t.Fatalf("unexpected error message:\n- want: contains %q\n-  got: %v", tt.errMsg, err)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.want.ofPort != got.ofPort {
+				t.Fatalf("unexpected ofPort:\n- want: %d\n-  got: %d",
+					tt.want.ofPort, got.ofPort)
+			}
+
+			if tt.want.macAddress != got.macAddress {
+				t.Fatalf("unexpected macAddress:\n- want: %q\n-  got: %q",
+					tt.want.macAddress, got.macAddress)
+			}
+		})
+	}
+}
+
+func TestClientOpenFlowDumpPortMappingCommandError(t *testing.T) {
+	bridge := "br0"
+	interfaceName := "interface1"
+	wantErr := errors.New("command failed")
+
+	c := testClient(nil, func(cmd string, args ...string) ([]byte, error) {
+		return nil, wantErr
+	})
+
+	_, err := c.OpenFlow.DumpPortMapping(bridge, interfaceName)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), wantErr.Error()) {
+		t.Fatalf("unexpected error:\n- want: contains %q\n-  got: %v", wantErr.Error(), err)
+	}
+}
