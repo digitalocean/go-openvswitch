@@ -274,6 +274,18 @@ type InterfaceOptions struct {
 	// tunneled traffic leaving this interface. Optionally it could be set to
 	// "flow" which expects the flow to set tunnel ID.
 	Key string
+
+	// Pre-shared key to encrypt OVS tunnel with IPsec. Supports GRE, GENEVE,
+	// VXLAN, and STT tunnel.
+	PSK string
+
+	// Path to certificate of the remote server to encrypt with an self-signed cert
+	// using IPsec. Supports GRE, GENEVE, VXLAN, and STT tunnel.
+	RemoteCert string
+
+	// Common name of the remote certificate signed by an certificate authority to
+	// encrypt using IPsec. Supports GRE, GENEVE, VXLAN, and STT tunnel.
+	RemoteName string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -313,6 +325,18 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Key != "" {
 		s = append(s, fmt.Sprintf("options:key=%s", i.Key))
+	}
+
+	if i.PSK != "" {
+		s = append(s, fmt.Sprintf("options:psk=%s", i.PSK))
+	}
+
+	if i.RemoteCert != "" {
+		s = append(s, fmt.Sprintf("options:remote_cert=%s", i.RemoteCert))
+	}
+
+	if i.RemoteName != "" {
+		s = append(s, fmt.Sprintf("options:remote_name=%s", i.RemoteName))
 	}
 
 	return s

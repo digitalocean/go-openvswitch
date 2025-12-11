@@ -858,6 +858,51 @@ func TestInterfaceOptions_slice(t *testing.T) {
 			},
 		},
 		{
+			desc: "ipsec PSK encrypted VXLAN tunnel",
+			i: InterfaceOptions{
+				Type:     InterfaceTypeVXLAN,
+				RemoteIP: "10.43.22.1",
+				Key:      "flow",
+				PSK:      "swordfish",
+			},
+			out: []string{
+				"type=stt",
+				"options:remote_ip=10.43.22.1",
+				"options:key=flow",
+				"options:psk=swordfish",
+			},
+		},
+		{
+			desc: "ipsec self-signed encrypted VXLAN tunnel",
+			i: InterfaceOptions{
+				Type:       InterfaceTypeVXLAN,
+				RemoteIP:   "10.43.22.1",
+				Key:        "flow",
+				RemoteCert: "/path/to/remote.pem",
+			},
+			out: []string{
+				"type=stt",
+				"options:remote_ip=10.43.22.1",
+				"options:key=flow",
+				"options:remote_cert=/path/to/remote.pem",
+			},
+		},
+		{
+			desc: "ipsec CA encrypted VXLAN tunnel",
+			i: InterfaceOptions{
+				Type:       InterfaceTypeVXLAN,
+				RemoteIP:   "10.43.22.1",
+				Key:        "flow",
+				RemoteName: "remote_cn",
+			},
+			out: []string{
+				"type=stt",
+				"options:remote_ip=10.43.22.1",
+				"options:key=flow",
+				"options:remote_name=remote_cn",
+			},
+		},
+		{
 			desc: "all options",
 			i: InterfaceOptions{
 				Type:                 InterfaceTypePatch,
