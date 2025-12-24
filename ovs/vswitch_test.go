@@ -197,6 +197,54 @@ func TestClientVSwitchGetControllerOK(t *testing.T) {
 	}
 }
 
+func TestClienCreateSFlow(t *testing.T) {
+	var (
+		id            = "830bab0b-4149-4f5e-b213-06c6d8a727b9"
+		bridge        = "br0"
+		collectorIP   = "10.0.0.10"
+		collectorPort = "6343"
+		agentIP       = "ovsbr0"
+		headerBytes   = "128"
+		samplingN     = "64"
+		pollingSecs   = "5"
+	)
+
+	// Apply Timeout option to verify arguments
+	c := testClient([]OptionFunc{Timeout(1)}, func(cmd string, args ...string) ([]byte, error) {
+		// Verify correct command and arguments passed, including option flags
+		if want, got := "ovs-vsctl", cmd; want != got {
+			t.Fatalf("incorrect command:\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		wantArgs := []string{
+			"--timeout=1",
+			"--",
+			"--id=@sflow", "create", "sflow", fmt.Sprintf("agent=%s", agentIP), fmt.Sprintf("target=\"%s:%s\"", collectorIP, collectorPort),
+			fmt.Sprintf("header=%s", headerBytes), fmt.Sprintf("sampling=%s", samplingN), fmt.Sprintf("polling=%s", pollingSecs),
+			"--",
+			"set", "bridge", bridge, "sflow=@sflow",
+		}
+
+		if want, got := wantArgs, args; !reflect.DeepEqual(want, got) {
+			t.Fatalf("incorrect arguments\n- want: %v\n-  got: %v",
+				want, got)
+		}
+
+		return []byte(id), nil
+	})
+
+	sflowID, err := c.VSwitch.CreateSFlow(bridge, agentIP, collectorIP, collectorPort, headerBytes, samplingN, pollingSecs)
+	if err != nil {
+		t.Fatalf("unexpected error for Client.VSwitch.CreateSflow: %v", err)
+	}
+
+	if sflowID != id {
+		t.Fatalf("sFlowID missmatch\n- got: %v\n- want: %v", sflowID, id)
+	}
+
+}
+
 func TestClientVSwitchListPorts(t *testing.T) {
 	tests := []struct {
 		name  string
