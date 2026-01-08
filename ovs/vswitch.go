@@ -17,6 +17,8 @@ package ovs
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 )
 
@@ -202,6 +204,17 @@ func (v *VSwitchSetService) Bridge(bridge string, options BridgeOptions) error {
 type BridgeOptions struct {
 	// Protocols specifies the OpenFlow protocols the bridge should use.
 	Protocols []string
+
+	// HWAddr specifies the MAC address to be assigned to the bridge.
+	HWAddr string
+
+	// STP defines if the spanning tree protocol is to be enabled on the bridge. A
+	// nil value here will not change the STP config of the bridge.
+	STP *bool
+
+	// Other defines bridge config options not otherwise present in this package
+	// but available in ovs such as rstp options (e.g. `rstp_enable=false`).
+	Other []string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -213,7 +226,15 @@ func (o BridgeOptions) slice() []string {
 		s = append(s, fmt.Sprintf("protocols=%s", strings.Join(o.Protocols, ",")))
 	}
 
-	return s
+	if hw, err := net.ParseMAC(o.HWAddr); err == nil {
+		s = append(s, fmt.Sprintf("other-config:hwaddr=%s", hw.String()))
+	}
+
+	if o.STP != nil {
+		s = append(s, fmt.Sprintf("stp_enable=%s", strconv.FormatBool(*o.STP)))
+	}
+
+	return append(s, o.Other...)
 }
 
 // Interface sets configuration for an interface using the values from an
