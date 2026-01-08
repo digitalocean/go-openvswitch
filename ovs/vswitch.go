@@ -274,6 +274,11 @@ type InterfaceOptions struct {
 	// tunneled traffic leaving this interface. Optionally it could be set to
 	// "flow" which expects the flow to set tunnel ID.
 	Key string
+
+	// Optionally compute encapsulation header (either GRE or UDP) checksums on
+	// outgoing packets. Default is false, set to true to enable. Checksums present
+	// on incoming packets will be validated regardless of this setting.
+	Csum string
 }
 
 // slice creates a string slice containing any non-zero option values from the
@@ -313,6 +318,10 @@ func (i InterfaceOptions) slice() []string {
 
 	if i.Key != "" {
 		s = append(s, fmt.Sprintf("options:key=%s", i.Key))
+	}
+
+	if i.Csum != "" {
+		s = append(s, fmt.Sprintf("options:csum=%s", i.Csum))
 	}
 
 	return s

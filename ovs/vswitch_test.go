@@ -858,6 +858,21 @@ func TestInterfaceOptions_slice(t *testing.T) {
 			},
 		},
 		{
+			desc: "flow based VXLAN tunnel",
+			i: InterfaceOptions{
+				Type:     InterfaceTypeVXLAN,
+				RemoteIP: "flow",
+				Key:      "flow",
+				Csum:     "true",
+			},
+			out: []string{
+				"type=vxlan",
+				"options:remote_ip=flow",
+				"options:key=flow",
+				"options:csum=true",
+			},
+		},
+		{
 			desc: "all options",
 			i: InterfaceOptions{
 				Type:                 InterfaceTypePatch,
