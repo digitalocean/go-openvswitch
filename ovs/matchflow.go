@@ -37,8 +37,10 @@ var (
 // A MatchFlow is an OpenFlow flow intended for flow deletion.  It can be marshaled to its textual
 // form for use with Open vSwitch.
 type MatchFlow struct {
-	Protocol Protocol
+	Strict   bool
 	InPort   int
+	Priority int
+	Protocol Protocol
 	Matches  []Match
 	Table    int
 
@@ -83,6 +85,11 @@ func (f *MatchFlow) MarshalText() ([]byte, error) {
 
 	var b []byte
 
+	if f.Strict {
+		b = append(b, priority+"="...)
+		b = strconv.AppendInt(b, int64(f.Priority), 10)
+		b = append(b, ',')
+	}
 	if f.Protocol != "" {
 		b = append(b, f.Protocol...)
 		b = append(b, ',')
