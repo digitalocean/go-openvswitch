@@ -173,6 +173,11 @@ var (
 
 // parseAction creates an Action function from the input string.
 func parseAction(s string) (Action, error) {
+	// Preserve unsupported but valid actions (e.g. bundle(...)) as raw.
+	if strings.HasPrefix(strings.ToLower(s), "bundle(") {
+		return RawAction(s), nil
+	}
+
 	// Simple actions which match a basic string
 	switch strings.ToLower(s) {
 	case actionDrop:
@@ -180,6 +185,7 @@ func parseAction(s string) (Action, error) {
 	case actionFlood:
 		return Flood(), nil
 	case actionInPort:
+
 		return InPort(), nil
 	case actionLocal:
 		return Local(), nil
@@ -389,5 +395,8 @@ func parseAction(s string) (Action, error) {
 		return SetField(ss[0][1], ss[0][2]), nil
 	}
 
-	return nil, fmt.Errorf("no action matched for %q", s)
+	// Fallback: preserve unknown action as raw text so dump-flows parsing
+	// does not fail on valid but unsupported actions (e.g. push/pop).
+	return RawAction(s), nil
 }
+

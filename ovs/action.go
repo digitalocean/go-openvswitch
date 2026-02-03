@@ -93,6 +93,27 @@ type Action interface {
 	fmt.GoStringer
 }
 
+// A rawAction preserves the original action string for unknown actions.
+// This is useful when parsing dump-flows output with unsupported actions.
+type rawAction struct {
+	raw string
+}
+
+// MarshalText implements Action.
+func (a *rawAction) MarshalText() ([]byte, error) {
+	return []byte(a.raw), nil
+}
+
+// GoString implements Action.
+func (a *rawAction) GoString() string {
+	return fmt.Sprintf("ovs.RawAction(%q)", a.raw)
+}
+
+// RawAction returns an Action that preserves a raw action string.
+func RawAction(raw string) Action {
+	return &rawAction{raw: raw}
+}
+
 // A textAction is an Action which is referred to by a name only, with no arguments.
 type textAction struct {
 	action string
@@ -446,7 +467,7 @@ func (a *outputFieldAction) GoString() string {
 // applies multipath link selection `algorithm` (with parameter `arg`)
 // to choose one of `n_links` output links numbered 0 through n_links
 // minus 1, and stores the link into `dst`, which must be a field or
-// subfield in the syntax described under ``Field Specifications’’
+// subfield in the syntax described under “Field Specifications’’
 // above.
 // https://www.openvswitch.org/support/dist-docs/ovs-actions.7.txt
 func Multipath(fields string, basis int, algorithm string, nlinks int, arg int, dst string) Action {
